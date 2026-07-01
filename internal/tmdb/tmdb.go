@@ -60,6 +60,30 @@ type TVShow struct {
 	Cast         []string `json:"cast,omitempty"`
 }
 
+type TVSeason struct {
+	ID           int         `json:"id"`
+	ShowID       int         `json:"showId"`
+	ShowTitle    string      `json:"showTitle"`
+	SeasonNumber int         `json:"seasonNumber"`
+	Title        string      `json:"title"`
+	Overview     string      `json:"overview"`
+	AirDate      string      `json:"airDate"`
+	PosterPath   string      `json:"posterPath"`
+	VoteAverage  float64     `json:"voteAverage"`
+	Episodes     []TVEpisode `json:"episodes,omitempty"`
+}
+
+type TVEpisode struct {
+	ID            int     `json:"id"`
+	SeasonNumber  int     `json:"seasonNumber"`
+	EpisodeNumber int     `json:"episodeNumber"`
+	Title         string  `json:"title"`
+	Overview      string  `json:"overview"`
+	AirDate       string  `json:"airDate"`
+	StillPath     string  `json:"stillPath"`
+	VoteAverage   float64 `json:"voteAverage"`
+}
+
 func (c Client) Enabled() bool {
 	return c.Key != ""
 }
@@ -230,6 +254,47 @@ func (c Client) TVShow(id int) (TVShow, error) {
 		}
 	}
 	return show, nil
+}
+
+func (c Client) TVSeason(showID int, seasonNumber int, showTitle string) (TVSeason, error) {
+	values := url.Values{}
+	values.Set("api_key", c.Key)
+	values.Set("language", c.language())
+	var response struct {
+		ID           int     `json:"id"`
+		Name         string  `json:"name"`
+		Overview     string  `json:"overview"`
+		AirDate      string  `json:"air_date"`
+		PosterPath   string  `json:"poster_path"`
+		SeasonNumber int     `json:"season_number"`
+		VoteAverage  float64 `json:"vote_average"`
+		Episodes     []struct {
+			ID            int     `json:"id"`
+			Name          string  `json:"name"`
+			Overview      string  `json:"overview"`
+			AirDate       string  `json:"air_date"`
+			EpisodeNumber int     `json:"episode_number"`
+			SeasonNumber  int     `json:"season_number"`
+			StillPath     string  `json:"still_path"`
+			VoteAverage   float64 `json:"vote_average"`
+		} `json:"episodes"`
+	}
+	if err := c.get(fmt.Sprintf("/tv/%d/season/%d?%s", showID, seasonNumber, values.Encode()), &response); err != nil {
+		return TVSeason{}, err
+	}
+	season := TVSeason{
+		ID: response.ID, ShowID: showID, ShowTitle: showTitle, SeasonNumber: response.SeasonNumber,
+		Title: response.Name, Overview: response.Overview, AirDate: response.AirDate,
+		PosterPath: response.PosterPath, VoteAverage: response.VoteAverage,
+	}
+	for _, episode := range response.Episodes {
+		season.Episodes = append(season.Episodes, TVEpisode{
+			ID: episode.ID, SeasonNumber: episode.SeasonNumber, EpisodeNumber: episode.EpisodeNumber,
+			Title: episode.Name, Overview: episode.Overview, AirDate: episode.AirDate,
+			StillPath: episode.StillPath, VoteAverage: episode.VoteAverage,
+		})
+	}
+	return season, nil
 }
 
 func (c Client) DownloadImage(path string) ([]byte, error) {

@@ -41,6 +41,22 @@ type tvShowNFO struct {
 	Fanart    string   `xml:"fanart>thumb,omitempty"`
 }
 
+type tvSeasonNFO struct {
+	XMLName      xml.Name `xml:"season"`
+	SeasonNumber int      `xml:"seasonnumber"`
+	Title        string   `xml:"title"`
+	ShowTitle    string   `xml:"showtitle,omitempty"`
+	SortTitle    string   `xml:"sorttitle,omitempty"`
+	Year         string   `xml:"year,omitempty"`
+	Plot         string   `xml:"plot,omitempty"`
+	Rating       string   `xml:"rating,omitempty"`
+	TMDBID       int      `xml:"tmdbid,omitempty"`
+	UniqueIDs    []unique `xml:"uniqueid"`
+	Premiered    string   `xml:"premiered,omitempty"`
+	Thumb        string   `xml:"thumb,omitempty"`
+	Fanart       string   `xml:"fanart>thumb,omitempty"`
+}
+
 type unique struct {
 	Type    string `xml:"type,attr"`
 	Default string `xml:"default,attr,omitempty"`
@@ -82,6 +98,40 @@ func WriteTVShow(dir string, show tmdb.TVShow) error {
 	output = append([]byte(xml.Header), output...)
 	output = append(output, '\n')
 	return os.WriteFile(filepath.Join(dir, "tvshow.nfo"), output, 0644)
+}
+
+func WriteTVSeason(path string, season tmdb.TVSeason, fanartPath string) error {
+	value := tvSeasonNFO{
+		SeasonNumber: season.SeasonNumber,
+		Title:        seasonTitle(season),
+		ShowTitle:    season.ShowTitle,
+		SortTitle:    seasonTitle(season),
+		Year:         year(season.AirDate),
+		Plot:         season.Overview,
+		Rating:       strconv.FormatFloat(season.VoteAverage, 'f', 1, 64),
+		TMDBID:       season.ShowID,
+		Premiered:    season.AirDate,
+		Thumb:        season.PosterPath,
+		Fanart:       fanartPath,
+	}
+	value.UniqueIDs = append(value.UniqueIDs, unique{Type: "tmdb", Default: "true", Value: strconv.Itoa(season.ShowID)})
+	output, err := xml.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return err
+	}
+	output = append([]byte(xml.Header), output...)
+	output = append(output, '\n')
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, output, 0644)
+}
+
+func seasonTitle(season tmdb.TVSeason) string {
+	if strings.TrimSpace(season.Title) != "" {
+		return season.Title
+	}
+	return "Season " + strconv.Itoa(season.SeasonNumber)
 }
 
 func year(date string) string {

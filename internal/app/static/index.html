@@ -388,7 +388,7 @@
             </label>
             <label class="check-row" v-if="chooser.mediaType === 'tvshow'">
               <input type="checkbox" v-model="chooser.options.showMetadata" />
-              电视剧元数据 / tvshow.nfo
+              {{ chooser.scope === 'season' ? '季元数据 / season.nfo' : '电视剧元数据 / tvshow.nfo' }}
             </label>
             <label class="check-row" v-if="chooser.mediaType === 'tvshow'">
               <input type="checkbox" v-model="chooser.options.episodeMetadata" />

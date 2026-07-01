@@ -630,25 +630,70 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 		if season == 0 {
 			season = item.Season
 		}
-		showDir := item.Dir
-		if item.Season > 0 || item.Episode > 0 {
-			showDir = filepath.Dir(item.Dir)
+		showDir := tvShowRootDir(item)
+		var seasonMetadata tmdb.TVSeason
+		var seasonMetadataLoaded bool
+		seasonPosterAvailable := false
+		seasonFanartAvailable := false
+		loadSeasonMetadata := func() (tmdb.TVSeason, error) {
+			if seasonMetadataLoaded {
+				return seasonMetadata, nil
+			}
+			var err error
+			seasonMetadata, err = client.TVSeason(show.ID, season, show.Title)
+			if err != nil {
+				return tmdb.TVSeason{}, err
+			}
+			seasonMetadataLoaded = true
+			return seasonMetadata, nil
 		}
 		if input.WriteNFO {
-			if err := writeTVShowNFO(showDir, show, input.Overwrite); err != nil {
-				http.Error(w, err.Error(), 500)
-				return
+			if scope == "season" && season > 0 {
+				seasonMetadata, err := loadSeasonMetadata()
+				if err != nil {
+					http.Error(w, err.Error(), 500)
+					return
+				}
+				if err := writeTVSeasonNFO(seasonNFOPath(item, season), seasonMetadata, show.BackdropPath, input.Overwrite); err != nil {
+					http.Error(w, err.Error(), 500)
+					return
+				}
+			} else {
+				if err := writeTVShowNFO(showDir, show, input.Overwrite); err != nil {
+					http.Error(w, err.Error(), 500)
+					return
+				}
 			}
 		}
 		if input.WriteImages {
-			if show.PosterPath != "" {
-				if data, err := client.DownloadImage(show.PosterPath); err == nil {
-					_ = writeImages(showDir, imageNames(settings.TVShowPosterNames, settings.TVShowPosterName, defaultTVShowPosterNames(), item), data, input.Overwrite)
+			if scope == "season" && season > 0 {
+				seasonMetadata, err := loadSeasonMetadata()
+				if err != nil {
+					http.Error(w, err.Error(), 500)
+					return
 				}
-			}
-			if show.BackdropPath != "" {
-				if data, err := client.DownloadImage(show.BackdropPath); err == nil {
-					_ = writeImages(showDir, imageNames(settings.TVShowFanartNames, settings.TVShowFanartName, defaultTVShowFanartNames(), item), data, input.Overwrite)
+				if seasonMetadata.PosterPath != "" {
+					seasonPosterAvailable = true
+					if data, err := client.DownloadImage(seasonMetadata.PosterPath); err == nil {
+						_ = writeImages(showDir, seasonPosterNames(season), data, input.Overwrite)
+					}
+				}
+				if show.BackdropPath != "" {
+					seasonFanartAvailable = true
+					if data, err := client.DownloadImage(show.BackdropPath); err == nil {
+						_ = writeImages(showDir, seasonFanartNames(season), data, input.Overwrite)
+					}
+				}
+			} else {
+				if show.PosterPath != "" {
+					if data, err := client.DownloadImage(show.PosterPath); err == nil {
+						_ = writeImages(showDir, imageNames(settings.TVShowPosterNames, settings.TVShowPosterName, defaultTVShowPosterNames(), item), data, input.Overwrite)
+					}
+				}
+				if show.BackdropPath != "" {
+					if data, err := client.DownloadImage(show.BackdropPath); err == nil {
+						_ = writeImages(showDir, imageNames(settings.TVShowFanartNames, settings.TVShowFanartName, defaultTVShowFanartNames(), item), data, input.Overwrite)
+					}
 				}
 			}
 		}
@@ -665,8 +710,16 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 				updated[i].MatchedName = show.Title
 			}
 			if input.WriteImages {
-				updated[i].HasPoster = updated[i].HasPoster || show.PosterPath != ""
-				updated[i].HasFanart = updated[i].HasFanart || show.BackdropPath != ""
+				if scope == "season" {
+					updated[i].HasPoster = updated[i].HasPoster || seasonPosterAvailable
+					updated[i].HasFanart = updated[i].HasFanart || seasonFanartAvailable
+				} else {
+					updated[i].HasPoster = updated[i].HasPoster || show.PosterPath != ""
+					updated[i].HasFanart = updated[i].HasFanart || show.BackdropPath != ""
+				}
+			}
+			if input.WriteNFO && scope == "season" {
+				updated[i].HasNFO = true
 			}
 		}
 		s.mu.Lock()
@@ -678,7 +731,11 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		writeJSON(w, map[string]interface{}{"item": updated[0], "items": updated, "show": show, "scope": scope})
+		response := map[string]interface{}{"item": updated[0], "items": updated, "show": show, "scope": scope}
+		if seasonMetadataLoaded {
+			response["season"] = seasonMetadata
+		}
+		writeJSON(w, response)
 		return
 	}
 	movie, err := client.Movie(input.TMDBID)
@@ -822,10 +879,6 @@ func (s *Server) matchTVItems(libraryID string, showName string, season int, sco
 		if scope == "season" && season > 0 && item.Season != season {
 			continue
 		}
-		item.MatchedID = show.ID
-		item.MatchedName = show.Title
-		item.HasPoster = item.HasPoster || show.PosterPath != ""
-		item.HasFanart = item.HasFanart || show.BackdropPath != ""
 		updated = append(updated, item)
 	}
 	return updated
@@ -849,6 +902,15 @@ func writeTVShowNFO(dir string, show tmdb.TVShow, overwrite bool) error {
 		}
 	}
 	return nfo.WriteTVShow(dir, show)
+}
+
+func writeTVSeasonNFO(path string, season tmdb.TVSeason, fanartPath string, overwrite bool) error {
+	if !overwrite {
+		if _, err := os.Stat(path); err == nil {
+			return nil
+		}
+	}
+	return nfo.WriteTVSeason(path, season, fanartPath)
 }
 
 func writeImage(dir string, name string, data []byte, overwrite bool) error {
@@ -925,6 +987,62 @@ func defaultTVShowPosterNames() []string {
 
 func defaultTVShowFanartNames() []string {
 	return []string{"fanart.jpg", "backdrop.jpg"}
+}
+
+func seasonNFOPath(item media.Item, season int) string {
+	showDir := tvShowRootDir(item)
+	seasonDir := tvSeasonDir(item, showDir)
+	if seasonDir != "" && seasonDir != showDir {
+		return filepath.Join(seasonDir, "season.nfo")
+	}
+	return filepath.Join(showDir, seasonFilename(season, "nfo"))
+}
+
+func tvShowRootDir(item media.Item) string {
+	source := strings.TrimSpace(item.SourcePath)
+	if source != "" {
+		if rel, err := filepath.Rel(source, item.Path); err == nil && rel != "." && !strings.HasPrefix(rel, "..") {
+			parts := strings.Split(rel, string(filepath.Separator))
+			if len(parts) > 1 && parts[0] != "" {
+				return filepath.Join(source, parts[0])
+			}
+		}
+	}
+	if item.Season > 0 || item.Episode > 0 {
+		parent := filepath.Dir(item.Dir)
+		if parent != "." && parent != string(filepath.Separator) {
+			return parent
+		}
+	}
+	return item.Dir
+}
+
+func tvSeasonDir(item media.Item, showDir string) string {
+	if item.Season > 0 || item.Episode > 0 {
+		return item.Dir
+	}
+	return showDir
+}
+
+func seasonPosterNames(season int) []string {
+	return []string{seasonFilename(season, "jpg", "-poster")}
+}
+
+func seasonFanartNames(season int) []string {
+	return []string{seasonFilename(season, "jpg", "-fanart")}
+}
+
+func seasonFilename(season int, extension string, suffix ...string) string {
+	name := ""
+	if season == 0 {
+		name = "season-specials"
+	} else {
+		name = fmt.Sprintf("season%02d", season)
+	}
+	if len(suffix) > 0 {
+		name += suffix[0]
+	}
+	return name + "." + extension
 }
 
 func (s *Server) runningScanTaskLocked(libraryID string) *Task {
