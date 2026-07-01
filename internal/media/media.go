@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -157,7 +158,7 @@ func ScanLibraryWithCancel(library Library, progress func(ScanProgress), shouldC
 				}
 				return nil
 			}
-			item := NewItem(library, root, path, info.Name())
+			item := NewItemFromFileInfo(library, root, path, info)
 			items = append(items, item)
 			if progress != nil {
 				progress(ScanProgress{SourcePath: root, CurrentPath: path, VisitedFiles: visited, FoundItems: len(items), Item: &item})
@@ -194,9 +195,21 @@ func NormalizePaths(library Library) []string {
 }
 
 func NewItem(library Library, sourcePath string, path string, fileName string) Item {
+	info, _ := os.Stat(path)
+	return newItem(library, sourcePath, path, fileName, info)
+}
+
+func NewItemFromFileInfo(library Library, sourcePath string, path string, info os.FileInfo) Item {
+	fileName := filepath.Base(path)
+	if info != nil {
+		fileName = info.Name()
+	}
+	return newItem(library, sourcePath, path, fileName, info)
+}
+
+func newItem(library Library, sourcePath string, path string, fileName string, info os.FileInfo) Item {
 	title, year := GuessTitleYear(fileName)
 	dir := filepath.Dir(path)
-	now := time.Now().UTC().Format(time.RFC3339)
 	item := Item{
 		ID:          stableID(path),
 		LibraryID:   library.ID,
@@ -207,7 +220,7 @@ func NewItem(library Library, sourcePath string, path string, fileName string) I
 		FileName:    fileName,
 		TitleGuess:  title,
 		YearGuess:   year,
-		DateAdded:   now,
+		DateAdded:   FileDate(info).UTC().Format(time.RFC3339),
 		MediaType:   ClassifyMediaFile(path),
 		HasNFO:      exists(filepath.Join(dir, "movie.nfo")) || exists(strings.TrimSuffix(path, filepath.Ext(path))+".nfo"),
 		HasPoster:   hasAny(dir, []string{"poster.jpg", "folder.jpg", strings.TrimSuffix(fileName, filepath.Ext(fileName)) + "-poster.jpg"}),
@@ -232,9 +245,6 @@ func NewItem(library Library, sourcePath string, path string, fileName string) I
 }
 
 func MergeScannedItem(existing Item, scanned Item) Item {
-	if existing.DateAdded != "" {
-		scanned.DateAdded = existing.DateAdded
-	}
 	if scanned.MatchedID == 0 && existing.MatchedID != 0 {
 		scanned.MatchedID = existing.MatchedID
 	}
@@ -269,6 +279,81 @@ func MergeScannedItem(existing Item, scanned Item) Item {
 		scanned.TitleGuess = existing.TitleGuess
 	}
 	return scanned
+}
+
+func FileDate(info os.FileInfo) time.Time {
+	if info == nil {
+		return time.Now()
+	}
+	if created, ok := statTime(info.Sys(), "Birthtimespec", "Birthtim", "Btim"); ok {
+		return created
+	}
+	if modified := info.ModTime(); !modified.IsZero() {
+		return modified
+	}
+	return time.Now()
+}
+
+func statTime(sys interface{}, fieldNames ...string) (time.Time, bool) {
+	value := reflect.ValueOf(sys)
+	if !value.IsValid() {
+		return time.Time{}, false
+	}
+	if value.Kind() == reflect.Pointer {
+		if value.IsNil() {
+			return time.Time{}, false
+		}
+		value = value.Elem()
+	}
+	if value.Kind() != reflect.Struct {
+		return time.Time{}, false
+	}
+	for _, fieldName := range fieldNames {
+		field := value.FieldByName(fieldName)
+		if !field.IsValid() {
+			continue
+		}
+		seconds, nanoseconds, ok := timespecValues(field)
+		if !ok || seconds <= 0 {
+			continue
+		}
+		return time.Unix(seconds, nanoseconds), true
+	}
+	return time.Time{}, false
+}
+
+func timespecValues(value reflect.Value) (int64, int64, bool) {
+	if value.Kind() == reflect.Pointer {
+		if value.IsNil() {
+			return 0, 0, false
+		}
+		value = value.Elem()
+	}
+	if value.Kind() != reflect.Struct {
+		return 0, 0, false
+	}
+	seconds, ok := intField(value, "Sec", "Tv_sec")
+	if !ok {
+		return 0, 0, false
+	}
+	nanoseconds, _ := intField(value, "Nsec", "Tv_nsec")
+	return seconds, nanoseconds, true
+}
+
+func intField(value reflect.Value, names ...string) (int64, bool) {
+	for _, name := range names {
+		field := value.FieldByName(name)
+		if !field.IsValid() {
+			continue
+		}
+		switch field.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			return field.Int(), true
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return int64(field.Uint()), true
+		}
+	}
+	return 0, false
 }
 
 func applyNFOSummary(item *Item) {

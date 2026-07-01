@@ -60,7 +60,7 @@
           </div>
         </section>
 
-        <section class="workbench">
+        <section class="workbench" ref="workbench" :style="workbenchStyle">
           <section class="browser-pane">
             <div class="browser-toolbar">
               <div class="filter-toolbar-main">
@@ -192,6 +192,8 @@
             </footer>
           </section>
 
+          <div class="pane-resizer" @pointerdown="startWorkbenchResize" title="拖动调整列表宽度"></div>
+
           <aside class="detail-pane">
             <template v-if="selectedSummary">
               <div class="summary-fanart">
@@ -274,7 +276,7 @@
             </div>
             <button type="button" @click="closeFilterEditor">关闭</button>
           </header>
-          <section class="filter-editor-shell">
+          <section class="filter-editor-shell" :style="filterEditorStyle">
             <nav class="filter-editor-tabs">
               <button
                 type="button"
@@ -286,6 +288,7 @@
                 {{ group.label }}
               </button>
             </nav>
+            <div class="pane-resizer filter-resizer" @pointerdown="startFilterNavResize" title="拖动调整筛选分组宽度"></div>
             <div class="filter-editor-list">
               <template v-for="group in filterGroups" :key="group.id">
                 <template v-if="filterEditor.tab === group.id">

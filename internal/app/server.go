@@ -1270,16 +1270,22 @@ func (s *Server) loadItems() error {
 	if err != nil {
 		return err
 	}
-	var backfill []media.Item
+	var refreshed []media.Item
 	for _, item := range items {
-		if item.DateAdded == "" {
+		if info, err := os.Stat(item.Path); err == nil {
+			fileDate := media.FileDate(info).UTC().Format(time.RFC3339)
+			if item.DateAdded != fileDate {
+				item.DateAdded = fileDate
+				refreshed = append(refreshed, item)
+			}
+		} else if item.DateAdded == "" {
 			item.DateAdded = time.Now().UTC().Format(time.RFC3339)
-			backfill = append(backfill, item)
+			refreshed = append(refreshed, item)
 		}
 		s.items[item.ID] = item
 	}
-	if len(backfill) > 0 {
-		return s.store.SaveItems(backfill)
+	if len(refreshed) > 0 {
+		return s.store.SaveItems(refreshed)
 	}
 	return nil
 }

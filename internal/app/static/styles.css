@@ -9,8 +9,14 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  height: 100%;
+}
+
 body {
   margin: 0;
+  overflow: hidden;
 }
 
 button,
@@ -48,7 +54,8 @@ select {
 
 #app {
   display: grid;
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
 }
 
 .sidebar {
@@ -197,6 +204,7 @@ label {
 
 main {
   min-width: 0;
+  min-height: 0;
   display: grid;
   grid-template-rows: auto auto 1fr;
 }
@@ -342,8 +350,9 @@ main {
 .workbench {
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(560px, 1fr) 380px;
+  grid-template-columns: minmax(560px, 1fr) 6px 380px;
   gap: 0;
+  overflow: hidden;
 }
 
 .browser-pane,
@@ -356,7 +365,19 @@ main {
 .browser-pane {
   display: grid;
   grid-template-rows: auto 1fr auto;
+}
+
+.pane-resizer {
+  min-width: 6px;
+  width: 6px;
+  cursor: col-resize;
+  background: #edf2f7;
+  border-left: 1px solid #d9e1eb;
   border-right: 1px solid #d9e1eb;
+}
+
+.pane-resizer:hover {
+  background: #cddbea;
 }
 
 .browser-toolbar {
@@ -778,7 +799,7 @@ pre {
 .filter-editor-shell {
   min-height: 0;
   display: grid;
-  grid-template-columns: 180px minmax(0, 1fr);
+  grid-template-columns: 180px 6px minmax(0, 1fr);
 }
 
 .filter-editor-tabs {
@@ -786,8 +807,11 @@ pre {
   align-content: start;
   gap: 1px;
   padding: 10px;
-  border-right: 1px solid #d9e1eb;
   background: #f8fafc;
+}
+
+.filter-resizer {
+  align-self: stretch;
 }
 
 .filter-editor-tabs button {
@@ -1289,7 +1313,11 @@ pre {
 @media (max-width: 1080px) {
   #app,
   .workbench {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
+  }
+
+  .pane-resizer {
+    display: none;
   }
 
   .sidebar {
@@ -1306,7 +1334,7 @@ pre {
   .chooser-search,
   .chooser-body,
   .chooser-detail {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
   }
 
   .settings-modal {

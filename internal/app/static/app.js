@@ -76,6 +76,11 @@ createApp({
         open: false,
         tab: "details",
       },
+      layout: {
+        browserWidth: 0,
+        filterNavWidth: 180,
+        resizing: null,
+      },
       sortKey: "title",
       sortDirection: "asc",
       detailTab: "info",
@@ -215,6 +220,17 @@ createApp({
     },
     selectedScanning() {
       return this.selectedTask && this.selectedTask.state === "running";
+    },
+    workbenchStyle() {
+      if (!this.layout.browserWidth) return {};
+      return {
+        gridTemplateColumns: `minmax(420px, ${this.layout.browserWidth}px) 6px minmax(300px, 1fr)`,
+      };
+    },
+    filterEditorStyle() {
+      return {
+        gridTemplateColumns: `${this.layout.filterNavWidth}px 6px minmax(0, 1fr)`,
+      };
     },
     filterGroups() {
       const groups = [
@@ -492,18 +508,68 @@ createApp({
   },
   async mounted() {
     await this.loadSettings();
+    this.loadLayoutSettings();
     await this.loadLibraries();
     this.startPolling();
     window.addEventListener("click", this.closeContextMenu);
     window.addEventListener("keydown", this.handleKeydown);
+    window.addEventListener("pointermove", this.handleResizeMove);
+    window.addEventListener("pointerup", this.stopResize);
     this.status = "就绪";
   },
   beforeUnmount() {
     if (this.poller) clearInterval(this.poller);
     window.removeEventListener("click", this.closeContextMenu);
     window.removeEventListener("keydown", this.handleKeydown);
+    window.removeEventListener("pointermove", this.handleResizeMove);
+    window.removeEventListener("pointerup", this.stopResize);
   },
   methods: {
+    loadLayoutSettings() {
+      const browserWidth = Number(localStorage.getItem("tmmweb.browserWidth") || 0);
+      const filterNavWidth = Number(localStorage.getItem("tmmweb.filterNavWidth") || 0);
+      if (browserWidth >= 420) this.layout.browserWidth = browserWidth;
+      if (filterNavWidth >= 140) this.layout.filterNavWidth = filterNavWidth;
+    },
+    startWorkbenchResize(event) {
+      const rect = this.$refs.workbench ? this.$refs.workbench.getBoundingClientRect() : null;
+      if (!rect) return;
+      const currentWidth = this.layout.browserWidth || Math.round(rect.width - 380);
+      this.layout.resizing = {
+        type: "workbench",
+        startX: event.clientX,
+        startWidth: currentWidth,
+        containerWidth: rect.width,
+      };
+      event.preventDefault();
+    },
+    startFilterNavResize(event) {
+      this.layout.resizing = {
+        type: "filterNav",
+        startX: event.clientX,
+        startWidth: this.layout.filterNavWidth,
+      };
+      event.preventDefault();
+    },
+    handleResizeMove(event) {
+      const resizing = this.layout.resizing;
+      if (!resizing) return;
+      const delta = event.clientX - resizing.startX;
+      if (resizing.type === "workbench") {
+        const max = Math.max(420, resizing.containerWidth - 300 - 6);
+        this.layout.browserWidth = Math.min(max, Math.max(420, resizing.startWidth + delta));
+        return;
+      }
+      if (resizing.type === "filterNav") {
+        this.layout.filterNavWidth = Math.min(320, Math.max(140, resizing.startWidth + delta));
+      }
+    },
+    stopResize() {
+      if (!this.layout.resizing) return;
+      if (this.layout.browserWidth) localStorage.setItem("tmmweb.browserWidth", String(Math.round(this.layout.browserWidth)));
+      localStorage.setItem("tmmweb.filterNavWidth", String(Math.round(this.layout.filterNavWidth)));
+      this.layout.resizing = null;
+    },
     filterDefinition(id) {
       return this.filterDefinitions.get(id) || null;
     },
