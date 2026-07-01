@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TMM WebUI</title>
+    <script src="/vue.global.prod.js"></script>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="mark">T</div>
+          <div>
+            <h1>TMM WebUI</h1>
+            <p>轻量媒体刮削与重命名</p>
+          </div>
+        </div>
+
+        <form class="panel compact" @submit.prevent="addLibrary">
+          <h2>媒体库</h2>
+          <label>
+            名称
+            <input v-model="newLibrary.name" placeholder="电影" />
+          </label>
+          <label>
+            路径
+            <input v-model="newLibrary.path" placeholder="/media/Movies" />
+          </label>
+          <label>
+            类型
+            <select v-model="newLibrary.type">
+              <option value="movie">电影</option>
+            </select>
+          </label>
+          <button type="submit">添加媒体库</button>
+        </form>
+
+        <div class="panel libraries">
+          <button
+            v-for="library in libraries"
+            :key="library.id"
+            :class="{ active: selectedLibrary && selectedLibrary.id === library.id }"
+            @click="selectLibrary(library)"
+          >
+            <span>{{ library.name }}</span>
+            <small>{{ library.path }}</small>
+          </button>
+        </div>
+      </aside>
+
+      <main>
+        <header class="topbar">
+          <div>
+            <h2>{{ selectedLibrary ? selectedLibrary.name : '未选择媒体库' }}</h2>
+            <p>{{ status }}</p>
+          </div>
+          <div class="actions">
+            <button :disabled="!selectedLibrary || busy" @click="scan">扫描</button>
+            <button :disabled="!selectedItem || busy" @click="searchSelected">搜索候选</button>
+          </div>
+        </header>
+
+        <section class="workspace">
+          <div class="panel list-panel">
+            <div class="table-head">
+              <span>文件</span>
+              <span>识别名</span>
+              <span>年份</span>
+              <span>状态</span>
+            </div>
+            <button
+              class="row"
+              v-for="item in items"
+              :key="item.id"
+              :class="{ selected: selectedItem && selectedItem.id === item.id }"
+              @click="selectItem(item)"
+            >
+              <span class="file">{{ item.fileName }}</span>
+              <span>{{ item.titleGuess }}</span>
+              <span>{{ item.yearGuess || '-' }}</span>
+              <span class="badges">
+                <b v-if="item.hasNfo">NFO</b>
+                <b v-if="item.hasPoster">海报</b>
+                <b v-if="item.matchedName">{{ item.matchedName }}</b>
+              </span>
+            </button>
+          </div>
+
+          <div class="panel detail-panel">
+            <template v-if="selectedItem">
+              <h2>{{ selectedItem.titleGuess }}</h2>
+              <p class="path">{{ selectedItem.path }}</p>
+
+              <div class="section">
+                <h3>刮削候选</h3>
+                <div class="candidate" v-for="candidate in candidates" :key="candidate.id">
+                  <div>
+                    <strong>{{ candidate.title }}</strong>
+                    <span>{{ candidate.releaseDate || '未知年份' }}</span>
+                    <p>{{ candidate.overview || '无简介' }}</p>
+                  </div>
+                  <button @click="scrape(candidate)">写入</button>
+                </div>
+              </div>
+
+              <div class="section">
+                <h3>重命名</h3>
+                <label>
+                  模板
+                  <input v-model="rename.pattern" />
+                </label>
+                <label>
+                  标题
+                  <input v-model="rename.title" />
+                </label>
+                <label>
+                  年份
+                  <input v-model="rename.year" />
+                </label>
+                <label>
+                  TMDb ID
+                  <input v-model.number="rename.tmdbId" />
+                </label>
+                <div class="rename-actions">
+                  <button @click="previewRename">预览</button>
+                  <button :disabled="!renamePreview" @click="applyRename">执行重命名</button>
+                </div>
+                <pre v-if="renamePreview">{{ renamePreviewText }}</pre>
+              </div>
+            </template>
+            <div v-else class="empty">选择一个媒体文件开始刮削或重命名。</div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="/app.js"></script>
+  </body>
+</html>
