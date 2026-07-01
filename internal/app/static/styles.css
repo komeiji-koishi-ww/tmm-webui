@@ -808,6 +808,19 @@ pre {
   justify-self: start;
 }
 
+.settings-form-row textarea {
+  width: 100%;
+  min-height: 94px;
+  resize: vertical;
+  border: 1px solid #ccd7e3;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font: inherit;
+  line-height: 1.45;
+  color: #1f2937;
+  background: #fff;
+}
+
 .settings-check {
   margin-left: 160px;
 }

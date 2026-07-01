@@ -583,42 +583,108 @@
                     </select>
                   </div>
                   <div class="settings-check-grid">
-                    <label class="check-row"><input type="checkbox" checked disabled /> 标题</label>
-                    <label class="check-row"><input type="checkbox" checked disabled /> 简介</label>
-                    <label class="check-row"><input type="checkbox" checked disabled /> 演员</label>
-                    <label class="check-row"><input type="checkbox" checked disabled /> 类型</label>
-                    <label class="check-row"><input type="checkbox" checked disabled /> 评分</label>
-                    <label class="check-row"><input type="checkbox" checked disabled /> TMDb ID</label>
+                    <label class="check-row" v-if="activeSettingsPage === 'movie-scraper'">
+                      <input type="checkbox" v-model="scraperSettings.movieScrapeMetadata" />
+                      默认写入电影匹配状态
+                    </label>
+                    <label class="check-row" v-if="activeSettingsPage === 'tvshow-scraper'">
+                      <input type="checkbox" v-model="scraperSettings.tvShowScrapeMetadata" />
+                      默认写入电视剧匹配状态
+                    </label>
+                    <label class="check-row" v-if="activeSettingsPage === 'tvshow-scraper'">
+                      <input type="checkbox" v-model="scraperSettings.tvShowEpisodeMetadata" />
+                      整剧/整季刮削时更新集匹配状态
+                    </label>
+                    <label class="check-row"><input type="checkbox" checked disabled /> 标题 / 原始标题</label>
+                    <label class="check-row"><input type="checkbox" checked disabled /> 简介 / 类型 / 评分</label>
+                    <label class="check-row"><input type="checkbox" checked disabled /> 演员 / TMDb ID</label>
                   </div>
                 </fieldset>
               </section>
 
-              <section class="settings-panel" v-if="activeSettingsPage === 'movie-artwork-naming' || activeSettingsPage === 'tvshow-artwork-naming' || activeSettingsPage === 'movie-artwork' || activeSettingsPage === 'tvshow-artwork'">
+              <section class="settings-panel" v-if="activeSettingsPage === 'movie-nfo' || activeSettingsPage === 'tvshow-nfo'">
+                <div class="settings-panel-title">
+                  <h3>{{ activeSettingsPage === 'movie-nfo' ? '电影 NFO' : '电视剧 NFO' }}</h3>
+                  <span>Kodi / Plex 兼容</span>
+                </div>
+                <fieldset class="settings-fieldset">
+                  <legend>NFO 写入</legend>
+                  <div class="settings-check-grid">
+                    <label class="check-row" v-if="activeSettingsPage === 'movie-nfo'">
+                      <input type="checkbox" v-model="scraperSettings.movieScrapeNfo" />
+                      默认写入 movie.nfo
+                    </label>
+                    <label class="check-row" v-if="activeSettingsPage === 'tvshow-nfo'">
+                      <input type="checkbox" v-model="scraperSettings.tvShowScrapeNfo" />
+                      默认写入 tvshow.nfo
+                    </label>
+                    <label class="check-row"><input type="checkbox" checked disabled /> NFO 格式：Kodi/XBMC</label>
+                    <label class="check-row"><input type="checkbox" checked disabled /> 语言：zh-CN</label>
+                  </div>
+                </fieldset>
+              </section>
+
+              <section class="settings-panel" v-if="activeSettingsPage === 'movie-artwork' || activeSettingsPage === 'tvshow-artwork'">
                 <div class="settings-panel-title">
                   <h3>{{ activeSettingsPage.startsWith('movie') ? '电影图片' : '电视剧图片' }}</h3>
-                  <span>海报 / 背景图</span>
+                  <span>图片刮削器</span>
                 </div>
                 <fieldset class="settings-fieldset" v-if="activeSettingsPage.startsWith('movie')">
-                  <legend>图片命名</legend>
-                  <div class="settings-form-row">
-                    <label>海报</label>
-                    <input v-model.trim="scraperSettings.moviePosterName" />
-                  </div>
-                  <div class="settings-form-row">
-                    <label>背景图</label>
-                    <input v-model.trim="scraperSettings.movieFanartName" />
+                  <legend>默认行为</legend>
+                  <div class="settings-check-grid">
+                    <label class="check-row">
+                      <input type="checkbox" v-model="scraperSettings.movieScrapeImages" />
+                      默认下载海报 / 背景图
+                    </label>
+                    <label class="check-row">
+                      <input type="checkbox" v-model="scraperSettings.movieScrapeOverwrite" />
+                      覆盖已有图片
+                    </label>
                   </div>
                 </fieldset>
                 <fieldset class="settings-fieldset" v-else>
-                  <legend>图片命名</legend>
+                  <legend>默认行为</legend>
+                  <div class="settings-check-grid">
+                    <label class="check-row">
+                      <input type="checkbox" v-model="scraperSettings.tvShowScrapeImages" />
+                      默认下载剧集海报 / 背景图
+                    </label>
+                    <label class="check-row">
+                      <input type="checkbox" v-model="scraperSettings.tvShowScrapeOverwrite" />
+                      覆盖已有图片
+                    </label>
+                  </div>
+                </fieldset>
+              </section>
+
+              <section class="settings-panel" v-if="activeSettingsPage === 'movie-artwork-naming' || activeSettingsPage === 'tvshow-artwork-naming'">
+                <div class="settings-panel-title">
+                  <h3>{{ activeSettingsPage.startsWith('movie') ? '电影图片命名' : '电视剧图片命名' }}</h3>
+                  <span>每行一个文件名</span>
+                </div>
+                <fieldset class="settings-fieldset" v-if="activeSettingsPage.startsWith('movie')">
+                  <legend>文件名规则</legend>
+                  <div class="settings-form-row">
+                    <label>海报</label>
+                    <textarea v-model.trim="scraperSettings.moviePosterNames" rows="4"></textarea>
+                  </div>
+                  <div class="settings-form-row">
+                    <label>背景图</label>
+                    <textarea v-model.trim="scraperSettings.movieFanartNames" rows="4"></textarea>
+                  </div>
+                  <p class="setting-note">支持 {filename}，对应 TMM 的 poster/folder/电影文件名-poster 等命名。</p>
+                </fieldset>
+                <fieldset class="settings-fieldset" v-else>
+                  <legend>文件名规则</legend>
                   <div class="settings-form-row">
                     <label>剧集海报</label>
-                    <input v-model.trim="scraperSettings.tvShowPosterName" />
+                    <textarea v-model.trim="scraperSettings.tvShowPosterNames" rows="4"></textarea>
                   </div>
                   <div class="settings-form-row">
                     <label>剧集背景图</label>
-                    <input v-model.trim="scraperSettings.tvShowFanartName" />
+                    <textarea v-model.trim="scraperSettings.tvShowFanartNames" rows="4"></textarea>
                   </div>
+                  <p class="setting-note">对应 TMM 的 poster/folder 和 fanart/backdrop 命名。</p>
                 </fieldset>
               </section>
 
@@ -664,14 +730,14 @@
                 </fieldset>
               </section>
 
-              <section class="settings-panel" v-if="['movie-ui','tvshow-ui','movie-nfo','tvshow-nfo','movie-scraper-options','tvshow-scraper-options','movie-artwork-options','tvshow-artwork-options'].includes(activeSettingsPage)">
+              <section class="settings-panel" v-if="['movie-ui','tvshow-ui','movie-scraper-options','tvshow-scraper-options','movie-artwork-options','tvshow-artwork-options'].includes(activeSettingsPage)">
                 <div class="settings-panel-title">
                   <h3>{{ activeSettingsTitle }}</h3>
-                  <span>按 TMM 结构预留</span>
+                  <span>尚无对应后端能力</span>
                 </div>
                 <fieldset class="settings-fieldset">
                   <legend>{{ activeSettingsTitle }}</legend>
-                  <p class="setting-note">这个页面已经按 TMM 设置树放置，具体选项会随着对应功能落地继续补齐。</p>
+                  <p class="setting-note">TMM 这里包含列显示、高级刮削器配置、额外图片类型等选项；当前 WebUI 尚未实现对应处理流程，所以不做不可用的假开关。</p>
                 </fieldset>
               </section>
             </main>

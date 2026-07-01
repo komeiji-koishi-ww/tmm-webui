@@ -36,6 +36,15 @@ createApp({
         proxyPassword: "",
         proxyPasswordConfigured: false,
         clearProxyPassword: false,
+        movieScrapeMetadata: true,
+        movieScrapeNfo: true,
+        movieScrapeImages: true,
+        movieScrapeOverwrite: false,
+        tvShowScrapeMetadata: true,
+        tvShowEpisodeMetadata: true,
+        tvShowScrapeNfo: true,
+        tvShowScrapeImages: true,
+        tvShowScrapeOverwrite: false,
         movieRenamerPathname: "{title} ({year})",
         movieRenamerFilename: "{title} ({year})",
         tvShowRenamerShowFolder: "{showTitle}",
@@ -43,8 +52,12 @@ createApp({
         tvShowRenamerFilename: "{showTitle} - S{seasonNr2}E{episodeNr2} - {title}",
         moviePosterName: "poster.jpg",
         movieFanartName: "fanart.jpg",
+        moviePosterNames: "poster.jpg\nfolder.jpg\n{filename}-poster.jpg",
+        movieFanartNames: "fanart.jpg\n{filename}-fanart.jpg",
         tvShowPosterName: "poster.jpg",
         tvShowFanartName: "fanart.jpg",
+        tvShowPosterNames: "poster.jpg\nfolder.jpg",
+        tvShowFanartNames: "fanart.jpg\nbackdrop.jpg",
         saving: false,
       },
       settingsOpen: false,
@@ -87,6 +100,7 @@ createApp({
         error: "",
         options: {
           metadata: true,
+          nfo: true,
           artwork: true,
           overwrite: false,
           showMetadata: true,
@@ -330,6 +344,15 @@ createApp({
         this.scraperSettings.proxyPassword = "";
         this.scraperSettings.proxyPasswordConfigured = !!settings.proxyPassword;
         this.scraperSettings.clearProxyPassword = false;
+        this.scraperSettings.movieScrapeMetadata = settings.movieScrapeMetadata !== false;
+        this.scraperSettings.movieScrapeNfo = settings.movieScrapeNfo !== false;
+        this.scraperSettings.movieScrapeImages = settings.movieScrapeImages !== false;
+        this.scraperSettings.movieScrapeOverwrite = !!settings.movieScrapeOverwrite;
+        this.scraperSettings.tvShowScrapeMetadata = settings.tvShowScrapeMetadata !== false;
+        this.scraperSettings.tvShowEpisodeMetadata = settings.tvShowEpisodeMetadata !== false;
+        this.scraperSettings.tvShowScrapeNfo = settings.tvShowScrapeNfo !== false;
+        this.scraperSettings.tvShowScrapeImages = settings.tvShowScrapeImages !== false;
+        this.scraperSettings.tvShowScrapeOverwrite = !!settings.tvShowScrapeOverwrite;
         this.scraperSettings.movieRenamerPathname = settings.movieRenamerPathname || "{title} ({year})";
         this.scraperSettings.movieRenamerFilename = settings.movieRenamerFilename || "{title} ({year})";
         this.scraperSettings.tvShowRenamerShowFolder = settings.tvShowRenamerShowFolder || "{showTitle}";
@@ -337,8 +360,12 @@ createApp({
         this.scraperSettings.tvShowRenamerFilename = settings.tvShowRenamerFilename || "{showTitle} - S{seasonNr2}E{episodeNr2} - {title}";
         this.scraperSettings.moviePosterName = settings.moviePosterName || "poster.jpg";
         this.scraperSettings.movieFanartName = settings.movieFanartName || "fanart.jpg";
+        this.scraperSettings.moviePosterNames = settings.moviePosterNames || "poster.jpg\nfolder.jpg\n{filename}-poster.jpg";
+        this.scraperSettings.movieFanartNames = settings.movieFanartNames || "fanart.jpg\n{filename}-fanart.jpg";
         this.scraperSettings.tvShowPosterName = settings.tvShowPosterName || "poster.jpg";
         this.scraperSettings.tvShowFanartName = settings.tvShowFanartName || "fanart.jpg";
+        this.scraperSettings.tvShowPosterNames = settings.tvShowPosterNames || "poster.jpg\nfolder.jpg";
+        this.scraperSettings.tvShowFanartNames = settings.tvShowFanartNames || "fanart.jpg\nbackdrop.jpg";
       } catch (error) {
         this.status = error.message;
       }
@@ -383,6 +410,15 @@ createApp({
           proxyPort: Number(this.scraperSettings.proxyPort) || 0,
           proxyUsername: this.scraperSettings.proxyUsername,
           clearProxyPassword: this.scraperSettings.clearProxyPassword,
+          movieScrapeMetadata: !!this.scraperSettings.movieScrapeMetadata,
+          movieScrapeNfo: !!this.scraperSettings.movieScrapeNfo,
+          movieScrapeImages: !!this.scraperSettings.movieScrapeImages,
+          movieScrapeOverwrite: !!this.scraperSettings.movieScrapeOverwrite,
+          tvShowScrapeMetadata: !!this.scraperSettings.tvShowScrapeMetadata,
+          tvShowEpisodeMetadata: !!this.scraperSettings.tvShowEpisodeMetadata,
+          tvShowScrapeNfo: !!this.scraperSettings.tvShowScrapeNfo,
+          tvShowScrapeImages: !!this.scraperSettings.tvShowScrapeImages,
+          tvShowScrapeOverwrite: !!this.scraperSettings.tvShowScrapeOverwrite,
           movieRenamerPathname: this.scraperSettings.movieRenamerPathname,
           movieRenamerFilename: this.scraperSettings.movieRenamerFilename,
           tvShowRenamerShowFolder: this.scraperSettings.tvShowRenamerShowFolder,
@@ -390,8 +426,12 @@ createApp({
           tvShowRenamerFilename: this.scraperSettings.tvShowRenamerFilename,
           moviePosterName: this.scraperSettings.moviePosterName,
           movieFanartName: this.scraperSettings.movieFanartName,
+          moviePosterNames: this.scraperSettings.moviePosterNames,
+          movieFanartNames: this.scraperSettings.movieFanartNames,
           tvShowPosterName: this.scraperSettings.tvShowPosterName,
           tvShowFanartName: this.scraperSettings.tvShowFanartName,
+          tvShowPosterNames: this.scraperSettings.tvShowPosterNames,
+          tvShowFanartNames: this.scraperSettings.tvShowFanartNames,
         };
         if (this.scraperSettings.tmdbApiKey) body.tmdbApiKey = this.scraperSettings.tmdbApiKey;
         if (this.scraperSettings.proxyPassword) body.proxyPassword = this.scraperSettings.proxyPassword;
@@ -406,6 +446,15 @@ createApp({
         this.scraperSettings.proxyPort = settings.proxyPort || 7890;
         this.scraperSettings.proxyUsername = settings.proxyUsername || "";
         this.scraperSettings.proxyPasswordConfigured = !!settings.proxyPassword;
+        this.scraperSettings.movieScrapeMetadata = settings.movieScrapeMetadata !== false;
+        this.scraperSettings.movieScrapeNfo = settings.movieScrapeNfo !== false;
+        this.scraperSettings.movieScrapeImages = settings.movieScrapeImages !== false;
+        this.scraperSettings.movieScrapeOverwrite = !!settings.movieScrapeOverwrite;
+        this.scraperSettings.tvShowScrapeMetadata = settings.tvShowScrapeMetadata !== false;
+        this.scraperSettings.tvShowEpisodeMetadata = settings.tvShowEpisodeMetadata !== false;
+        this.scraperSettings.tvShowScrapeNfo = settings.tvShowScrapeNfo !== false;
+        this.scraperSettings.tvShowScrapeImages = settings.tvShowScrapeImages !== false;
+        this.scraperSettings.tvShowScrapeOverwrite = !!settings.tvShowScrapeOverwrite;
         this.scraperSettings.movieRenamerPathname = settings.movieRenamerPathname || this.scraperSettings.movieRenamerPathname;
         this.scraperSettings.movieRenamerFilename = settings.movieRenamerFilename || this.scraperSettings.movieRenamerFilename;
         this.scraperSettings.tvShowRenamerShowFolder = settings.tvShowRenamerShowFolder || this.scraperSettings.tvShowRenamerShowFolder;
@@ -413,8 +462,12 @@ createApp({
         this.scraperSettings.tvShowRenamerFilename = settings.tvShowRenamerFilename || this.scraperSettings.tvShowRenamerFilename;
         this.scraperSettings.moviePosterName = settings.moviePosterName || this.scraperSettings.moviePosterName;
         this.scraperSettings.movieFanartName = settings.movieFanartName || this.scraperSettings.movieFanartName;
+        this.scraperSettings.moviePosterNames = settings.moviePosterNames || this.scraperSettings.moviePosterNames;
+        this.scraperSettings.movieFanartNames = settings.movieFanartNames || this.scraperSettings.movieFanartNames;
         this.scraperSettings.tvShowPosterName = settings.tvShowPosterName || this.scraperSettings.tvShowPosterName;
         this.scraperSettings.tvShowFanartName = settings.tvShowFanartName || this.scraperSettings.tvShowFanartName;
+        this.scraperSettings.tvShowPosterNames = settings.tvShowPosterNames || this.scraperSettings.tvShowPosterNames;
+        this.scraperSettings.tvShowFanartNames = settings.tvShowFanartNames || this.scraperSettings.tvShowFanartNames;
         this.scraperSettings.tmdbApiKey = "";
         this.scraperSettings.proxyPassword = "";
         this.scraperSettings.clearProxyPassword = false;
@@ -445,6 +498,15 @@ createApp({
             proxyPort: Number(this.scraperSettings.proxyPort) || 0,
             proxyUsername: this.scraperSettings.proxyUsername,
             clearProxyPassword: false,
+            movieScrapeMetadata: !!this.scraperSettings.movieScrapeMetadata,
+            movieScrapeNfo: !!this.scraperSettings.movieScrapeNfo,
+            movieScrapeImages: !!this.scraperSettings.movieScrapeImages,
+            movieScrapeOverwrite: !!this.scraperSettings.movieScrapeOverwrite,
+            tvShowScrapeMetadata: !!this.scraperSettings.tvShowScrapeMetadata,
+            tvShowEpisodeMetadata: !!this.scraperSettings.tvShowEpisodeMetadata,
+            tvShowScrapeNfo: !!this.scraperSettings.tvShowScrapeNfo,
+            tvShowScrapeImages: !!this.scraperSettings.tvShowScrapeImages,
+            tvShowScrapeOverwrite: !!this.scraperSettings.tvShowScrapeOverwrite,
             movieRenamerPathname: this.scraperSettings.movieRenamerPathname,
             movieRenamerFilename: this.scraperSettings.movieRenamerFilename,
             tvShowRenamerShowFolder: this.scraperSettings.tvShowRenamerShowFolder,
@@ -452,8 +514,12 @@ createApp({
             tvShowRenamerFilename: this.scraperSettings.tvShowRenamerFilename,
             moviePosterName: this.scraperSettings.moviePosterName,
             movieFanartName: this.scraperSettings.movieFanartName,
+            moviePosterNames: this.scraperSettings.moviePosterNames,
+            movieFanartNames: this.scraperSettings.movieFanartNames,
             tvShowPosterName: this.scraperSettings.tvShowPosterName,
             tvShowFanartName: this.scraperSettings.tvShowFanartName,
+            tvShowPosterNames: this.scraperSettings.tvShowPosterNames,
+            tvShowFanartNames: this.scraperSettings.tvShowFanartNames,
           }),
         });
         this.scraperSettings.tmdbConfigured = !!settings.tmdbConfigured;
@@ -637,6 +703,10 @@ createApp({
     selectItem(item) {
       this.selectedItem = item;
       this.candidates = [];
+      this.rename.pattern =
+        item.kind === "tvshow"
+          ? this.scraperSettings.tvShowRenamerFilename
+          : this.scraperSettings.movieRenamerFilename;
       this.rename.title = item.titleGuess;
       this.rename.year = item.yearGuess || "";
       this.rename.tmdbId = item.matchedId || 0;
@@ -738,6 +808,7 @@ createApp({
         this.status = "没有可刮削的条目";
         return;
       }
+      const tv = config.mediaType === "tvshow";
       this.chooser = {
         open: true,
         scope: config.scope,
@@ -755,11 +826,12 @@ createApp({
         scraping: false,
         error: "",
         options: {
-          metadata: true,
-          artwork: true,
-          overwrite: false,
-          showMetadata: true,
-          episodeMetadata: config.scope === "season" || config.scope === "show",
+          metadata: tv ? this.scraperSettings.tvShowScrapeMetadata : this.scraperSettings.movieScrapeMetadata,
+          nfo: tv ? this.scraperSettings.tvShowScrapeNfo : this.scraperSettings.movieScrapeNfo,
+          artwork: tv ? this.scraperSettings.tvShowScrapeImages : this.scraperSettings.movieScrapeImages,
+          overwrite: tv ? this.scraperSettings.tvShowScrapeOverwrite : this.scraperSettings.movieScrapeOverwrite,
+          showMetadata: this.scraperSettings.tvShowScrapeMetadata,
+          episodeMetadata: this.scraperSettings.tvShowEpisodeMetadata && (config.scope === "season" || config.scope === "show"),
         },
       };
       this.searchChooser();
@@ -851,7 +923,7 @@ createApp({
           libraryId: this.selectedLibrary ? this.selectedLibrary.id : this.chooser.targetItem.libraryId,
           tmdbId: this.chooser.selected.id,
           mediaType: this.chooser.selected.mediaType || this.chooser.mediaType,
-          writeNfo: !!this.chooser.options.metadata || !!this.chooser.options.showMetadata,
+          writeNfo: !!this.chooser.options.nfo,
           writeImages: !!this.chooser.options.artwork,
           writeMeta: !!this.chooser.options.metadata || !!this.chooser.options.showMetadata || !!this.chooser.options.episodeMetadata,
           overwrite: !!this.chooser.options.overwrite,
@@ -986,6 +1058,7 @@ createApp({
     async scrape(candidate) {
       this.busy = true;
       this.status = "正在写入 NFO 和图片";
+      const tv = (candidate.mediaType || this.selectedItem.kind || this.activeModule) === "tvshow";
       try {
         const result = await this.api("/api/scrape", {
           method: "POST",
@@ -993,8 +1066,10 @@ createApp({
             itemId: this.selectedItem.id,
             tmdbId: candidate.id,
             mediaType: candidate.mediaType || this.selectedItem.kind || this.activeModule,
-            writeNfo: true,
-            writeImages: true,
+            writeNfo: tv ? this.scraperSettings.tvShowScrapeNfo : this.scraperSettings.movieScrapeNfo,
+            writeImages: tv ? this.scraperSettings.tvShowScrapeImages : this.scraperSettings.movieScrapeImages,
+            writeMeta: tv ? this.scraperSettings.tvShowScrapeMetadata : this.scraperSettings.movieScrapeMetadata,
+            overwrite: tv ? this.scraperSettings.tvShowScrapeOverwrite : this.scraperSettings.movieScrapeOverwrite,
           }),
         });
         this.selectedItem = result.item;
@@ -1020,6 +1095,11 @@ createApp({
           body: JSON.stringify({
             itemId: this.selectedItem.id,
             ...this.rename,
+            movieRenamerPathname: this.scraperSettings.movieRenamerPathname,
+            movieRenamerFilename: this.selectedItem.kind === "tvshow" ? this.scraperSettings.movieRenamerFilename : this.rename.pattern,
+            tvShowRenamerShowFolder: this.scraperSettings.tvShowRenamerShowFolder,
+            tvShowRenamerSeason: this.scraperSettings.tvShowRenamerSeason,
+            tvShowRenamerFilename: this.selectedItem.kind === "tvshow" ? this.rename.pattern : this.scraperSettings.tvShowRenamerFilename,
           }),
         });
         this.status = "重命名预览已生成";

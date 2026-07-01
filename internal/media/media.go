@@ -81,6 +81,17 @@ type RenamePreview struct {
 	TargetDir  string `json:"targetDir"`
 }
 
+type RenameTemplateData struct {
+	Title        string
+	ShowTitle    string
+	EpisodeTitle string
+	Year         string
+	TMDBID       int
+	Season       int
+	Episode      int
+	AirDate      string
+}
+
 type EpisodeMatch struct {
 	Season   int
 	Episodes []int
@@ -512,21 +523,114 @@ func BuildMovieRename(item Item, title string, year string, movieID int, pattern
 	if pattern == "" {
 		pattern = "{title} ({year}) {tmdb-{tmdbid}}"
 	}
-	safeTitle := safePath(title)
-	targetBase := strings.TrimSpace(pattern)
-	targetBase = strings.ReplaceAll(targetBase, "{title}", safeTitle)
-	targetBase = strings.ReplaceAll(targetBase, "{year}", year)
-	targetBase = strings.ReplaceAll(targetBase, "{tmdbid}", fmt.Sprintf("%d", movieID))
-	targetBase = strings.ReplaceAll(targetBase, "{tmdb-{tmdbid}}", fmt.Sprintf("{tmdb-%d}", movieID))
-	targetBase = strings.Join(strings.Fields(targetBase), " ")
+	return BuildMovieRenameWithPatterns(item, title, year, movieID, pattern, pattern)
+}
+
+func BuildMovieRenameWithPatterns(item Item, title string, year string, movieID int, folderPattern string, filePattern string) RenamePreview {
+	if strings.TrimSpace(folderPattern) == "" {
+		folderPattern = "{title} ({year})"
+	}
+	if strings.TrimSpace(filePattern) == "" {
+		filePattern = folderPattern
+	}
+	data := RenameTemplateData{
+		Title:  title,
+		Year:   year,
+		TMDBID: movieID,
+	}
+	targetFolder := renderRenamePattern(folderPattern, data, "Movie")
+	targetFileBase := renderRenamePattern(filePattern, data, targetFolder)
 	ext := filepath.Ext(item.Path)
-	targetDir := filepath.Join(filepath.Dir(item.Dir), targetBase)
+	targetDir := filepath.Join(filepath.Dir(item.Dir), targetFolder)
 	return RenamePreview{
 		SourceFile: item.Path,
-		TargetFile: filepath.Join(targetDir, targetBase+ext),
+		TargetFile: filepath.Join(targetDir, targetFileBase+ext),
 		SourceDir:  item.Dir,
 		TargetDir:  targetDir,
 	}
+}
+
+func BuildTVShowRename(item Item, showTitle string, episodeTitle string, year string, showID int, showFolderPattern string, seasonPattern string, filePattern string) RenamePreview {
+	if strings.TrimSpace(showFolderPattern) == "" {
+		showFolderPattern = "{showTitle}"
+	}
+	if strings.TrimSpace(seasonPattern) == "" {
+		seasonPattern = "Season {seasonNr2}"
+	}
+	if strings.TrimSpace(filePattern) == "" {
+		filePattern = "{showTitle} - S{seasonNr2}E{episodeNr2} - {title}"
+	}
+	if strings.TrimSpace(showTitle) == "" {
+		showTitle = item.ShowGuess
+	}
+	if strings.TrimSpace(episodeTitle) == "" {
+		episodeTitle = strings.TrimSuffix(item.FileName, filepath.Ext(item.FileName))
+	}
+	data := RenameTemplateData{
+		Title:        episodeTitle,
+		ShowTitle:    showTitle,
+		EpisodeTitle: episodeTitle,
+		Year:         year,
+		TMDBID:       showID,
+		Season:       item.Season,
+		Episode:      item.Episode,
+		AirDate:      item.AirDate,
+	}
+	showFolder := renderRenamePattern(showFolderPattern, data, "TV Show")
+	seasonFolder := renderRenamePattern(seasonPattern, data, "Season")
+	fileBase := renderRenamePattern(filePattern, data, strings.TrimSuffix(item.FileName, filepath.Ext(item.FileName)))
+	root := strings.TrimSpace(item.SourcePath)
+	if root == "" {
+		root = filepath.Dir(item.Dir)
+		if item.Season > 0 || item.Episode > 0 {
+			root = filepath.Dir(root)
+		}
+	}
+	targetDir := filepath.Join(root, showFolder, seasonFolder)
+	ext := filepath.Ext(item.Path)
+	return RenamePreview{
+		SourceFile: item.Path,
+		TargetFile: filepath.Join(targetDir, fileBase+ext),
+		SourceDir:  item.Dir,
+		TargetDir:  targetDir,
+	}
+}
+
+func renderRenamePattern(pattern string, data RenameTemplateData, fallback string) string {
+	value := strings.TrimSpace(pattern)
+	season := strconv.Itoa(data.Season)
+	episode := strconv.Itoa(data.Episode)
+	replacements := map[string]string{
+		"{title}":         safePath(data.Title),
+		"{showTitle}":     safePath(data.ShowTitle),
+		"{episodeTitle}":  safePath(data.EpisodeTitle),
+		"{year}":          data.Year,
+		"{tmdb-{tmdbid}}": fmt.Sprintf("{tmdb-%d}", data.TMDBID),
+		"{tmdbid}":        fmt.Sprintf("%d", data.TMDBID),
+		"{seasonNr}":      season,
+		"{seasonNr2}":     fmt.Sprintf("%02d", data.Season),
+		"{episodeNr}":     episode,
+		"{episodeNr2}":    fmt.Sprintf("%02d", data.Episode),
+		"{aired}":         data.AirDate,
+	}
+	keys := make([]string, 0, len(replacements))
+	for key := range replacements {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool { return len(keys[i]) > len(keys[j]) })
+	for _, key := range keys {
+		value = strings.ReplaceAll(value, key, replacements[key])
+	}
+	value = cleanGeneratedName(value)
+	if value == "" {
+		return cleanGeneratedName(fallback)
+	}
+	return value
+}
+
+func cleanGeneratedName(value string) string {
+	replacer := strings.NewReplacer("/", " ", "\\", " ", ":", " -", "*", "", "?", "", "\"", "'", "<", "", ">", "", "|", " ")
+	return strings.Join(strings.Fields(replacer.Replace(value)), " ")
 }
 
 func ApplyRename(preview RenamePreview) error {

@@ -40,6 +40,15 @@ type AppSettings struct {
 	ProxyPort               int    `json:"proxyPort"`
 	ProxyUsername           string `json:"proxyUsername"`
 	ProxyPassword           string `json:"proxyPassword"`
+	MovieScrapeMetadata     *bool  `json:"movieScrapeMetadata,omitempty"`
+	MovieScrapeNFO          *bool  `json:"movieScrapeNfo,omitempty"`
+	MovieScrapeImages       *bool  `json:"movieScrapeImages,omitempty"`
+	MovieScrapeOverwrite    *bool  `json:"movieScrapeOverwrite,omitempty"`
+	TVShowScrapeMetadata    *bool  `json:"tvShowScrapeMetadata,omitempty"`
+	TVShowEpisodeMetadata   *bool  `json:"tvShowEpisodeMetadata,omitempty"`
+	TVShowScrapeNFO         *bool  `json:"tvShowScrapeNfo,omitempty"`
+	TVShowScrapeImages      *bool  `json:"tvShowScrapeImages,omitempty"`
+	TVShowScrapeOverwrite   *bool  `json:"tvShowScrapeOverwrite,omitempty"`
 	MovieRenamerPathname    string `json:"movieRenamerPathname"`
 	MovieRenamerFilename    string `json:"movieRenamerFilename"`
 	TVShowRenamerShowFolder string `json:"tvShowRenamerShowFolder"`
@@ -47,8 +56,12 @@ type AppSettings struct {
 	TVShowRenamerFilename   string `json:"tvShowRenamerFilename"`
 	MoviePosterName         string `json:"moviePosterName"`
 	MovieFanartName         string `json:"movieFanartName"`
+	MoviePosterNames        string `json:"moviePosterNames"`
+	MovieFanartNames        string `json:"movieFanartNames"`
 	TVShowPosterName        string `json:"tvShowPosterName"`
 	TVShowFanartName        string `json:"tvShowFanartName"`
+	TVShowPosterNames       string `json:"tvShowPosterNames"`
+	TVShowFanartNames       string `json:"tvShowFanartNames"`
 }
 
 type SettingsResponse struct {
@@ -60,6 +73,15 @@ type SettingsResponse struct {
 	ProxyPort               int    `json:"proxyPort"`
 	ProxyUsername           string `json:"proxyUsername"`
 	ProxyPassword           bool   `json:"proxyPassword"`
+	MovieScrapeMetadata     bool   `json:"movieScrapeMetadata"`
+	MovieScrapeNFO          bool   `json:"movieScrapeNfo"`
+	MovieScrapeImages       bool   `json:"movieScrapeImages"`
+	MovieScrapeOverwrite    bool   `json:"movieScrapeOverwrite"`
+	TVShowScrapeMetadata    bool   `json:"tvShowScrapeMetadata"`
+	TVShowEpisodeMetadata   bool   `json:"tvShowEpisodeMetadata"`
+	TVShowScrapeNFO         bool   `json:"tvShowScrapeNfo"`
+	TVShowScrapeImages      bool   `json:"tvShowScrapeImages"`
+	TVShowScrapeOverwrite   bool   `json:"tvShowScrapeOverwrite"`
 	MovieRenamerPathname    string `json:"movieRenamerPathname"`
 	MovieRenamerFilename    string `json:"movieRenamerFilename"`
 	TVShowRenamerShowFolder string `json:"tvShowRenamerShowFolder"`
@@ -67,8 +89,12 @@ type SettingsResponse struct {
 	TVShowRenamerFilename   string `json:"tvShowRenamerFilename"`
 	MoviePosterName         string `json:"moviePosterName"`
 	MovieFanartName         string `json:"movieFanartName"`
+	MoviePosterNames        string `json:"moviePosterNames"`
+	MovieFanartNames        string `json:"movieFanartNames"`
 	TVShowPosterName        string `json:"tvShowPosterName"`
 	TVShowFanartName        string `json:"tvShowFanartName"`
+	TVShowPosterNames       string `json:"tvShowPosterNames"`
+	TVShowFanartNames       string `json:"tvShowFanartNames"`
 }
 
 type SettingsUpdate struct {
@@ -80,6 +106,15 @@ type SettingsUpdate struct {
 	ProxyUsername           string  `json:"proxyUsername"`
 	ProxyPassword           *string `json:"proxyPassword"`
 	ClearProxyPassword      bool    `json:"clearProxyPassword"`
+	MovieScrapeMetadata     *bool   `json:"movieScrapeMetadata"`
+	MovieScrapeNFO          *bool   `json:"movieScrapeNfo"`
+	MovieScrapeImages       *bool   `json:"movieScrapeImages"`
+	MovieScrapeOverwrite    *bool   `json:"movieScrapeOverwrite"`
+	TVShowScrapeMetadata    *bool   `json:"tvShowScrapeMetadata"`
+	TVShowEpisodeMetadata   *bool   `json:"tvShowEpisodeMetadata"`
+	TVShowScrapeNFO         *bool   `json:"tvShowScrapeNfo"`
+	TVShowScrapeImages      *bool   `json:"tvShowScrapeImages"`
+	TVShowScrapeOverwrite   *bool   `json:"tvShowScrapeOverwrite"`
 	MovieRenamerPathname    string  `json:"movieRenamerPathname"`
 	MovieRenamerFilename    string  `json:"movieRenamerFilename"`
 	TVShowRenamerShowFolder string  `json:"tvShowRenamerShowFolder"`
@@ -87,8 +122,12 @@ type SettingsUpdate struct {
 	TVShowRenamerFilename   string  `json:"tvShowRenamerFilename"`
 	MoviePosterName         string  `json:"moviePosterName"`
 	MovieFanartName         string  `json:"movieFanartName"`
+	MoviePosterNames        string  `json:"moviePosterNames"`
+	MovieFanartNames        string  `json:"movieFanartNames"`
 	TVShowPosterName        string  `json:"tvShowPosterName"`
 	TVShowFanartName        string  `json:"tvShowFanartName"`
+	TVShowPosterNames       string  `json:"tvShowPosterNames"`
+	TVShowFanartNames       string  `json:"tvShowFanartNames"`
 }
 
 type Server struct {
@@ -209,6 +248,33 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		} else if input.ProxyPassword != nil && *input.ProxyPassword != "" {
 			settings.ProxyPassword = *input.ProxyPassword
 		}
+		if input.MovieScrapeMetadata != nil {
+			settings.MovieScrapeMetadata = input.MovieScrapeMetadata
+		}
+		if input.MovieScrapeNFO != nil {
+			settings.MovieScrapeNFO = input.MovieScrapeNFO
+		}
+		if input.MovieScrapeImages != nil {
+			settings.MovieScrapeImages = input.MovieScrapeImages
+		}
+		if input.MovieScrapeOverwrite != nil {
+			settings.MovieScrapeOverwrite = input.MovieScrapeOverwrite
+		}
+		if input.TVShowScrapeMetadata != nil {
+			settings.TVShowScrapeMetadata = input.TVShowScrapeMetadata
+		}
+		if input.TVShowEpisodeMetadata != nil {
+			settings.TVShowEpisodeMetadata = input.TVShowEpisodeMetadata
+		}
+		if input.TVShowScrapeNFO != nil {
+			settings.TVShowScrapeNFO = input.TVShowScrapeNFO
+		}
+		if input.TVShowScrapeImages != nil {
+			settings.TVShowScrapeImages = input.TVShowScrapeImages
+		}
+		if input.TVShowScrapeOverwrite != nil {
+			settings.TVShowScrapeOverwrite = input.TVShowScrapeOverwrite
+		}
 		settings.MovieRenamerPathname = strings.TrimSpace(input.MovieRenamerPathname)
 		settings.MovieRenamerFilename = strings.TrimSpace(input.MovieRenamerFilename)
 		settings.TVShowRenamerShowFolder = strings.TrimSpace(input.TVShowRenamerShowFolder)
@@ -216,8 +282,12 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		settings.TVShowRenamerFilename = strings.TrimSpace(input.TVShowRenamerFilename)
 		settings.MoviePosterName = strings.TrimSpace(input.MoviePosterName)
 		settings.MovieFanartName = strings.TrimSpace(input.MovieFanartName)
+		settings.MoviePosterNames = strings.TrimSpace(input.MoviePosterNames)
+		settings.MovieFanartNames = strings.TrimSpace(input.MovieFanartNames)
 		settings.TVShowPosterName = strings.TrimSpace(input.TVShowPosterName)
 		settings.TVShowFanartName = strings.TrimSpace(input.TVShowFanartName)
+		settings.TVShowPosterNames = strings.TrimSpace(input.TVShowPosterNames)
+		settings.TVShowFanartNames = strings.TrimSpace(input.TVShowFanartNames)
 		tmdbClient, err := newTMDBClient(s.config, settings)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -536,6 +606,7 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "item not found; run scan first", 404)
 		return
 	}
+	settings := s.appSettings()
 	client := s.tmdbClient()
 	if item.Kind == "tvshow" || input.MediaType == "tvshow" {
 		show, err := client.TVShow(input.TMDBID)
@@ -572,12 +643,12 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 		if input.WriteImages {
 			if show.PosterPath != "" {
 				if data, err := client.DownloadImage(show.PosterPath); err == nil {
-					_ = writeImage(showDir, "poster.jpg", data, input.Overwrite)
+					_ = writeImages(showDir, imageNames(settings.TVShowPosterNames, settings.TVShowPosterName, defaultTVShowPosterNames(), item), data, input.Overwrite)
 				}
 			}
 			if show.BackdropPath != "" {
 				if data, err := client.DownloadImage(show.BackdropPath); err == nil {
-					_ = writeImage(showDir, "fanart.jpg", data, input.Overwrite)
+					_ = writeImages(showDir, imageNames(settings.TVShowFanartNames, settings.TVShowFanartName, defaultTVShowFanartNames(), item), data, input.Overwrite)
 				}
 			}
 		}
@@ -589,8 +660,10 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 			updated = append(updated, item)
 		}
 		for i := range updated {
-			updated[i].MatchedID = show.ID
-			updated[i].MatchedName = show.Title
+			if input.WriteMeta {
+				updated[i].MatchedID = show.ID
+				updated[i].MatchedName = show.Title
+			}
 			if input.WriteImages {
 				updated[i].HasPoster = updated[i].HasPoster || show.PosterPath != ""
 				updated[i].HasFanart = updated[i].HasFanart || show.BackdropPath != ""
@@ -622,17 +695,19 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 	if input.WriteImages {
 		if movie.PosterPath != "" {
 			if data, err := client.DownloadImage(movie.PosterPath); err == nil {
-				_ = writeImage(item.Dir, "poster.jpg", data, input.Overwrite)
+				_ = writeImages(item.Dir, imageNames(settings.MoviePosterNames, settings.MoviePosterName, defaultMoviePosterNames(), item), data, input.Overwrite)
 			}
 		}
 		if movie.BackdropPath != "" {
 			if data, err := client.DownloadImage(movie.BackdropPath); err == nil {
-				_ = writeImage(item.Dir, "fanart.jpg", data, input.Overwrite)
+				_ = writeImages(item.Dir, imageNames(settings.MovieFanartNames, settings.MovieFanartName, defaultMovieFanartNames(), item), data, input.Overwrite)
 			}
 		}
 	}
-	item.MatchedID = movie.ID
-	item.MatchedName = movie.Title
+	if input.WriteMeta {
+		item.MatchedID = movie.ID
+		item.MatchedName = movie.Title
+	}
 	if input.WriteNFO {
 		item.HasNFO = true
 	}
@@ -652,11 +727,16 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleRenamePreview(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		ItemID  string `json:"itemId"`
-		Title   string `json:"title"`
-		Year    string `json:"year"`
-		TMDBID  int    `json:"tmdbId"`
-		Pattern string `json:"pattern"`
+		ItemID                  string `json:"itemId"`
+		Title                   string `json:"title"`
+		Year                    string `json:"year"`
+		TMDBID                  int    `json:"tmdbId"`
+		Pattern                 string `json:"pattern"`
+		MovieRenamerPathname    string `json:"movieRenamerPathname"`
+		MovieRenamerFilename    string `json:"movieRenamerFilename"`
+		TVShowRenamerShowFolder string `json:"tvShowRenamerShowFolder"`
+		TVShowRenamerSeason     string `json:"tvShowRenamerSeason"`
+		TVShowRenamerFilename   string `json:"tvShowRenamerFilename"`
 	}
 	if !decodeJSON(w, r, &input) {
 		return
@@ -666,7 +746,35 @@ func (s *Server) handleRenamePreview(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "item not found", 404)
 		return
 	}
-	preview := media.BuildMovieRename(item, input.Title, input.Year, input.TMDBID, input.Pattern)
+	settings := s.appSettings()
+	var preview media.RenamePreview
+	if item.Kind == "tvshow" {
+		preview = media.BuildTVShowRename(
+			item,
+			input.Title,
+			"",
+			input.Year,
+			input.TMDBID,
+			defaultString(input.TVShowRenamerShowFolder, defaultString(settings.TVShowRenamerShowFolder, "{showTitle}")),
+			defaultString(input.TVShowRenamerSeason, defaultString(settings.TVShowRenamerSeason, "Season {seasonNr2}")),
+			defaultString(input.TVShowRenamerFilename, defaultString(settings.TVShowRenamerFilename, "{showTitle} - S{seasonNr2}E{episodeNr2} - {title}")),
+		)
+	} else {
+		folderPattern := input.MovieRenamerPathname
+		filePattern := input.MovieRenamerFilename
+		if strings.TrimSpace(folderPattern) == "" && strings.TrimSpace(filePattern) == "" {
+			folderPattern = input.Pattern
+			filePattern = input.Pattern
+		}
+		preview = media.BuildMovieRenameWithPatterns(
+			item,
+			input.Title,
+			input.Year,
+			input.TMDBID,
+			defaultString(folderPattern, defaultString(settings.MovieRenamerPathname, "{title} ({year})")),
+			defaultString(filePattern, defaultString(settings.MovieRenamerFilename, "{title} ({year})")),
+		)
+	}
 	writeJSON(w, preview)
 }
 
@@ -750,6 +858,73 @@ func writeImage(dir string, name string, data []byte, overwrite bool) error {
 		}
 	}
 	return nfo.WriteImage(dir, name, data)
+}
+
+func writeImages(dir string, names []string, data []byte, overwrite bool) error {
+	var firstErr error
+	for _, name := range names {
+		if err := writeImage(dir, name, data, overwrite); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+func imageNames(configured string, legacy string, defaults []string, item media.Item) []string {
+	values := splitConfiguredNames(configured)
+	if len(values) == 0 && strings.TrimSpace(legacy) != "" {
+		values = []string{legacy}
+	}
+	if len(values) == 0 {
+		values = defaults
+	}
+	fileBase := strings.TrimSuffix(item.FileName, filepath.Ext(item.FileName))
+	seen := map[string]bool{}
+	var names []string
+	for _, value := range values {
+		name := strings.TrimSpace(value)
+		if name == "" {
+			continue
+		}
+		name = strings.ReplaceAll(name, "{filename}", fileBase)
+		name = strings.ReplaceAll(name, "{moviefilename}", fileBase)
+		name = strings.ReplaceAll(name, "{movieFilename}", fileBase)
+		if filepath.Ext(name) == "" {
+			name += ".jpg"
+		}
+		name = filepath.Base(name)
+		if name == "." || seen[name] {
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	if len(names) == 0 {
+		return defaults
+	}
+	return names
+}
+
+func splitConfiguredNames(value string) []string {
+	return strings.FieldsFunc(value, func(r rune) bool {
+		return r == '\n' || r == '\r' || r == ',' || r == ';'
+	})
+}
+
+func defaultMoviePosterNames() []string {
+	return []string{"poster.jpg", "folder.jpg", "{filename}-poster.jpg"}
+}
+
+func defaultMovieFanartNames() []string {
+	return []string{"fanart.jpg", "{filename}-fanart.jpg"}
+}
+
+func defaultTVShowPosterNames() []string {
+	return []string{"poster.jpg", "folder.jpg"}
+}
+
+func defaultTVShowFanartNames() []string {
+	return []string{"fanart.jpg", "backdrop.jpg"}
 }
 
 func (s *Server) runningScanTaskLocked(libraryID string) *Task {
@@ -920,6 +1095,15 @@ func (s *Server) settingsResponseLocked() SettingsResponse {
 		ProxyPort:               s.settings.ProxyPort,
 		ProxyUsername:           s.settings.ProxyUsername,
 		ProxyPassword:           s.settings.ProxyPassword != "",
+		MovieScrapeMetadata:     defaultBool(s.settings.MovieScrapeMetadata, true),
+		MovieScrapeNFO:          defaultBool(s.settings.MovieScrapeNFO, true),
+		MovieScrapeImages:       defaultBool(s.settings.MovieScrapeImages, true),
+		MovieScrapeOverwrite:    defaultBool(s.settings.MovieScrapeOverwrite, false),
+		TVShowScrapeMetadata:    defaultBool(s.settings.TVShowScrapeMetadata, true),
+		TVShowEpisodeMetadata:   defaultBool(s.settings.TVShowEpisodeMetadata, true),
+		TVShowScrapeNFO:         defaultBool(s.settings.TVShowScrapeNFO, true),
+		TVShowScrapeImages:      defaultBool(s.settings.TVShowScrapeImages, true),
+		TVShowScrapeOverwrite:   defaultBool(s.settings.TVShowScrapeOverwrite, false),
 		MovieRenamerPathname:    defaultString(s.settings.MovieRenamerPathname, "{title} ({year})"),
 		MovieRenamerFilename:    defaultString(s.settings.MovieRenamerFilename, "{title} ({year})"),
 		TVShowRenamerShowFolder: defaultString(s.settings.TVShowRenamerShowFolder, "{showTitle}"),
@@ -927,9 +1111,26 @@ func (s *Server) settingsResponseLocked() SettingsResponse {
 		TVShowRenamerFilename:   defaultString(s.settings.TVShowRenamerFilename, "{showTitle} - S{seasonNr2}E{episodeNr2} - {title}"),
 		MoviePosterName:         defaultString(s.settings.MoviePosterName, "poster.jpg"),
 		MovieFanartName:         defaultString(s.settings.MovieFanartName, "fanart.jpg"),
+		MoviePosterNames:        defaultImageNames(s.settings.MoviePosterNames, s.settings.MoviePosterName, defaultMoviePosterNames()),
+		MovieFanartNames:        defaultImageNames(s.settings.MovieFanartNames, s.settings.MovieFanartName, defaultMovieFanartNames()),
 		TVShowPosterName:        defaultString(s.settings.TVShowPosterName, "poster.jpg"),
 		TVShowFanartName:        defaultString(s.settings.TVShowFanartName, "fanart.jpg"),
+		TVShowPosterNames:       defaultImageNames(s.settings.TVShowPosterNames, s.settings.TVShowPosterName, defaultTVShowPosterNames()),
+		TVShowFanartNames:       defaultImageNames(s.settings.TVShowFanartNames, s.settings.TVShowFanartName, defaultTVShowFanartNames()),
 	}
+}
+
+func (s *Server) appSettings() AppSettings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.settings
+}
+
+func defaultBool(value *bool, fallback bool) bool {
+	if value == nil {
+		return fallback
+	}
+	return *value
 }
 
 func defaultString(value string, fallback string) string {
@@ -937,6 +1138,21 @@ func defaultString(value string, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func defaultImageNames(value string, legacy string, fallback []string) string {
+	value = strings.TrimSpace(value)
+	if value != "" {
+		if len(fallback) > 1 && value == fallback[0] {
+			return strings.Join(fallback, "\n")
+		}
+		return value
+	}
+	legacy = strings.TrimSpace(legacy)
+	if legacy != "" && (len(fallback) == 0 || legacy != fallback[0]) {
+		return legacy
+	}
+	return strings.Join(fallback, "\n")
 }
 
 func (s *Server) tmdbClient() tmdb.Client {
