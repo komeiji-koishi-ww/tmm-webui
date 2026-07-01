@@ -42,7 +42,7 @@
             <button :disabled="!selectedLibrary || busy || (selectedTask && selectedTask.state === 'canceling')" @click="scan">
               {{ selectedScanning ? '停止扫描' : selectedTask && selectedTask.state === 'canceling' ? '正在停止' : '更新数据源' }}
             </button>
-            <button :disabled="!selectedItem || busy" @click="searchSelected">搜索/刮削</button>
+            <button :disabled="!selectedItem || busy" @click="openChooserFromSelected">搜索/刮削</button>
           </div>
         </header>
 
@@ -63,12 +63,53 @@
         <section class="workbench">
           <section class="browser-pane">
             <div class="browser-toolbar">
-              <input v-model="query" placeholder="搜索标题、文件名、路径" />
-              <div class="filter-tabs">
-                <button :class="{ active: activeFilter === 'all' }" @click="setFilter('all')">全部</button>
-                <button :class="{ active: activeFilter === 'missingNfo' }" @click="setFilter('missingNfo')">缺 NFO</button>
-                <button :class="{ active: activeFilter === 'missingArtwork' }" @click="setFilter('missingArtwork')">缺图片</button>
-                <button :class="{ active: activeFilter === 'matched' }" @click="setFilter('matched')">已匹配</button>
+              <div class="filter-toolbar-main">
+                <input v-model="query" placeholder="全部字段过滤" />
+                <button type="button" @click="openFilterEditor">编辑筛选项</button>
+                <button type="button" :disabled="!query && !filters.length" @click="clearFilters">清除</button>
+              </div>
+              <div class="sort-toolbar">
+                <label>
+                  排序
+                  <select v-model="sortKey">
+                    <option v-for="option in sortOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                  </select>
+                </label>
+                <button type="button" @click="sortDirection = sortDirection === 'asc' ? 'desc' : 'asc'">
+                  {{ sortDirection === 'asc' ? '升序' : '降序' }}
+                </button>
+              </div>
+              <div class="active-filter-list" v-if="filters.length">
+                <article class="filter-chip" v-for="(filter, index) in filters" :key="filter.id">
+                  <label class="check-row">
+                    <input type="checkbox" v-model="filter.enabled" />
+                    {{ filterDefinition(filter.id).label }}
+                  </label>
+                  <select v-model="filter.operator">
+                    <option v-for="operator in filterOperatorOptions(filter)" :key="operator.id" :value="operator.id">{{ operator.label }}</option>
+                  </select>
+                  <template v-if="filterDefinition(filter.id).type === 'choice' && filterValueOptions(filter).length">
+                    <select v-model="filter.value">
+                      <option value="">任意</option>
+                      <option v-for="value in filterValueOptions(filter)" :key="value" :value="value">{{ value }}</option>
+                    </select>
+                  </template>
+                  <template v-else-if="filterDefinition(filter.id).type === 'boolean'">
+                    <select v-model="filter.value">
+                      <option value="true">是</option>
+                      <option value="false">否</option>
+                    </select>
+                  </template>
+                  <template v-else>
+                    <input :type="filterInputType(filter)" v-model="filter.value" />
+                    <input v-if="filterDefinition(filter.id).type === 'number' && filter.operator === 'between'" type="number" v-model="filter.valueHigh" />
+                  </template>
+                  <label class="check-row">
+                    <input type="checkbox" v-model="filter.invert" />
+                    反选
+                  </label>
+                  <button type="button" @click="removeFilter(index)">移除</button>
+                </article>
               </div>
             </div>
 
@@ -76,9 +117,10 @@
               <div class="table-head">
                 <span>标题</span>
                 <span>年份</span>
-                <span>文件名</span>
-                <span>路径</span>
-                <span>状态</span>
+                <span>评分</span>
+                <span>添加日期</span>
+                <span>NFO</span>
+                <span>图片</span>
               </div>
               <button
                 class="table-row"
@@ -90,9 +132,10 @@
               >
                 <span>{{ item.titleGuess }}</span>
                 <span>{{ item.yearGuess || '-' }}</span>
-                <span class="file">{{ item.fileName }}</span>
-                <span class="file">{{ item.dir }}</span>
-                <span>{{ itemStatusText(item) }}</span>
+                <span>{{ formatRating(item.rating) }}</span>
+                <span>{{ formatDate(item.dateAdded) }}</span>
+                <span>{{ item.hasNfo ? '✓' : '-' }}</span>
+                <span>{{ item.hasPoster || item.hasFanart ? [item.hasPoster ? 'P' : '', item.hasFanart ? 'F' : ''].filter(Boolean).join(' / ') : '-' }}</span>
               </button>
               <div class="empty table-empty" v-if="!movieRows.length">没有匹配条目。</div>
             </div>
@@ -100,24 +143,27 @@
             <div class="media-table tv-tree" v-else>
               <div class="table-head tv-head">
                 <span>剧集 / 季 / 集</span>
-                <span>集数</span>
-                <span>文件</span>
+                <span>年份</span>
+                <span>评分</span>
+                <span>添加日期</span>
                 <span>状态</span>
               </div>
               <template v-for="show in tvTree" :key="show.key">
                 <button class="tree-row show-row" @click="toggleShow(show.key); selectTvGroup('show', show)" @contextmenu.prevent.stop="openContextMenu($event, 'show', show)">
                   <span><b>{{ isShowExpanded(show.key) ? '▾' : '▸' }}</b>{{ show.title }}</span>
-                  <span>{{ show.episodes }}</span>
-                  <span>{{ show.seasons.length }} 季</span>
-                  <span>show</span>
+                  <span>{{ firstTVItem(show) ? firstTVItem(show).yearGuess || '-' : '-' }}</span>
+                  <span>{{ firstTVItem(show) ? formatRating(firstTVItem(show).rating) : '-' }}</span>
+                  <span>{{ firstTVItem(show) ? formatDate(firstTVItem(show).dateAdded) : '-' }}</span>
+                  <span>{{ show.seasons.length }} 季 / {{ show.episodes }} 集</span>
                 </button>
                 <template v-if="isShowExpanded(show.key)">
                   <template v-for="season in show.seasons" :key="season.key">
                     <button class="tree-row season-row" @click="toggleSeason(season.key); selectTvGroup('season', season)" @contextmenu.prevent.stop="openContextMenu($event, 'season', { show, season })">
                       <span><b>{{ isSeasonExpanded(season.key) ? '▾' : '▸' }}</b>{{ season.title }}</span>
-                      <span>{{ season.items.length }}</span>
-                      <span>{{ show.title }}</span>
-                      <span>season</span>
+                      <span>{{ season.items[0] ? season.items[0].yearGuess || '-' : '-' }}</span>
+                      <span>{{ season.items[0] ? formatRating(season.items[0].rating) : '-' }}</span>
+                      <span>{{ season.items[0] ? formatDate(season.items[0].dateAdded) : '-' }}</span>
+                      <span>{{ season.items.length }} 集</span>
                     </button>
                     <button
                       v-if="isSeasonExpanded(season.key)"
@@ -129,8 +175,9 @@
                       @contextmenu.prevent.stop="openContextMenu($event, 'episode', item)"
                     >
                       <span>{{ itemSeasonText(item) }}</span>
-                      <span>{{ item.episode || '-' }}</span>
-                      <span class="file">{{ item.fileName }}</span>
+                      <span>{{ item.yearGuess || '-' }}</span>
+                      <span>{{ formatRating(item.rating) }}</span>
+                      <span>{{ formatDate(item.dateAdded) }}</span>
                       <span>{{ itemStatusText(item) }}</span>
                     </button>
                   </template>
@@ -146,104 +193,41 @@
           </section>
 
           <aside class="detail-pane">
-            <template v-if="selectedItem">
-              <header>
-                <div>
-                  <h2>{{ detailTitle }}</h2>
-                  <p>{{ selectedItem.path }}</p>
+            <template v-if="selectedSummary">
+              <div class="summary-fanart">
+                <img v-if="selectedSummary.fanart" :src="selectedSummary.fanart" alt="" />
+                <span v-else>Fanart</span>
+              </div>
+              <section class="summary-body">
+                <div class="summary-poster">
+                  <img v-if="selectedSummary.poster" :src="selectedSummary.poster" alt="" />
+                  <span v-else>Poster</span>
                 </div>
-              </header>
-
-              <nav class="detail-tabs">
-                <button :class="{ active: detailTab === 'info' }" @click="detailTab = 'info'">信息</button>
-                <button :class="{ active: detailTab === 'artwork' }" @click="detailTab = 'artwork'">图片</button>
-                <button :class="{ active: detailTab === 'media' }" @click="detailTab = 'media'">媒体</button>
-                <button :class="{ active: detailTab === 'scrape' }" @click="detailTab = 'scrape'">刮削</button>
-                <button :class="{ active: detailTab === 'rename' }" @click="detailTab = 'rename'">重命名</button>
-              </nav>
-
-              <section class="detail-section" v-if="detailTab === 'info'">
-                <dl>
+                <div class="summary-title">
+                  <h2>{{ selectedSummary.title }}</h2>
+                  <p>{{ selectedSummary.subtitle || selectedSummary.matchedName || '未匹配' }}</p>
+                </div>
+                <dl class="summary-meta">
+                  <dt>年份</dt>
+                  <dd>{{ selectedSummary.year || '-' }}</dd>
+                  <dt>评分</dt>
+                  <dd>{{ formatRating(selectedSummary.rating) }}</dd>
+                  <dt>添加日期</dt>
+                  <dd>{{ formatDate(selectedSummary.dateAdded) }}</dd>
                   <dt>类型</dt>
-                  <dd>{{ selectedItem.kind === 'tvshow' ? '电视剧' : '电影' }}</dd>
-                  <dt>标题</dt>
-                  <dd>{{ selectedItem.titleGuess }}</dd>
-                  <dt>年份/集数</dt>
-                  <dd>{{ itemSeasonText(selectedItem) }}</dd>
-                  <dt>数据源</dt>
-                  <dd>{{ selectedItem.sourcePath || '-' }}</dd>
-                  <dt>匹配</dt>
-                  <dd>{{ selectedItem.matchedName || '未匹配' }}</dd>
+                  <dd>{{ selectedSummary.genres.length ? selectedSummary.genres.join(' / ') : '-' }}</dd>
+                  <dt>TMDb</dt>
+                  <dd>{{ selectedSummary.matchedId || '-' }}</dd>
+                  <dt>IMDb</dt>
+                  <dd>{{ selectedSummary.imdbId || '-' }}</dd>
                 </dl>
-              </section>
-
-              <section class="detail-section" v-if="detailTab === 'artwork'">
-                <div class="status-grid">
-                  <span :class="{ ok: selectedItem.hasPoster }">Poster</span>
-                  <span :class="{ ok: selectedItem.hasFanart }">Fanart</span>
-                  <span :class="{ ok: selectedItem.hasNfo }">NFO</span>
-                  <span :class="{ ok: selectedItem.hasSubtitle }">Subtitle</span>
+                <div class="status-grid summary-status">
+                  <span :class="{ ok: selectedSummary.hasNfo }">NFO</span>
+                  <span :class="{ ok: selectedSummary.hasPoster }">Poster</span>
+                  <span :class="{ ok: selectedSummary.hasFanart }">Fanart</span>
+                  <span :class="{ ok: selectedSummary.hasSubtitle }">Subtitle</span>
                 </div>
-              </section>
-
-              <section class="detail-section" v-if="detailTab === 'media'">
-                <dl>
-                  <dt>媒体类型</dt>
-                  <dd>{{ selectedItem.mediaType || 'VIDEO' }}</dd>
-                  <dt>文件名</dt>
-                  <dd>{{ selectedItem.fileName }}</dd>
-                  <dt>目录</dt>
-                  <dd>{{ selectedItem.dir }}</dd>
-                </dl>
-              </section>
-
-              <section class="detail-section" v-if="detailTab === 'scrape'">
-                <div class="scrape-search">
-                  <label>
-                    搜索标题
-                    <input v-model="scrapeSearch.query" placeholder="输入 TMDb 搜索关键词" />
-                  </label>
-                  <label>
-                    年份
-                    <input v-model="scrapeSearch.year" placeholder="可选" />
-                  </label>
-                </div>
-                <div class="section-actions">
-                  <button :disabled="busy" @click="searchSelected">搜索候选</button>
-                </div>
-                <div class="empty" v-if="!candidates.length">没有候选时，改一下搜索标题或年份再搜索。</div>
-                <div class="candidate" v-for="candidate in candidates" :key="candidate.id">
-                  <div>
-                    <strong>{{ candidate.title }}</strong>
-                    <span>{{ candidate.mediaType === 'tvshow' ? '电视剧' : '电影' }} · {{ candidate.releaseDate || '未知年份' }}</span>
-                    <p>{{ candidate.overview || '无简介' }}</p>
-                  </div>
-                  <button @click="scrape(candidate)">写入</button>
-                </div>
-              </section>
-
-              <section class="detail-section" v-if="detailTab === 'rename'">
-                <label>
-                  模板
-                  <input v-model="rename.pattern" />
-                </label>
-                <label>
-                  标题
-                  <input v-model="rename.title" />
-                </label>
-                <label>
-                  年份
-                  <input v-model="rename.year" />
-                </label>
-                <label>
-                  TMDb ID
-                  <input v-model.number="rename.tmdbId" />
-                </label>
-                <div class="rename-actions">
-                  <button @click="previewRename">预览</button>
-                  <button :disabled="!renamePreview" @click="applyRename">执行重命名</button>
-                </div>
-                <pre v-if="renamePreview">{{ renamePreviewText }}</pre>
+                <p class="summary-overview">{{ selectedSummary.overview || '暂无简介。' }}</p>
               </section>
             </template>
             <div v-else class="empty detail-empty">选择一个条目。</div>
@@ -279,6 +263,50 @@
         @click.stop
       >
         <button type="button" @click="openChooserFromContext">{{ contextMenuTitle() }}</button>
+      </div>
+
+      <div class="modal-backdrop" v-if="filterEditor.open">
+        <div class="modal filter-modal">
+          <header>
+            <div>
+              <h2>编辑筛选项</h2>
+              <p>按 tinyMediaManager 的筛选分组启用需要的筛选器。</p>
+            </div>
+            <button type="button" @click="closeFilterEditor">关闭</button>
+          </header>
+          <section class="filter-editor-shell">
+            <nav class="filter-editor-tabs">
+              <button
+                type="button"
+                v-for="group in filterGroups"
+                :key="group.id"
+                :class="{ active: filterEditor.tab === group.id }"
+                @click="filterEditor.tab = group.id"
+              >
+                {{ group.label }}
+              </button>
+            </nav>
+            <div class="filter-editor-list">
+              <template v-for="group in filterGroups" :key="group.id">
+                <template v-if="filterEditor.tab === group.id">
+                  <article class="filter-editor-row" v-for="filter in group.filters" :key="filter.id" :class="{ disabled: !filter.available }">
+                    <div>
+                      <strong>{{ filter.label }}</strong>
+                      <span>{{ filter.available ? '可用' : '需要媒体信息索引' }}</span>
+                    </div>
+                    <button type="button" :disabled="!filter.available || isFilterActive(filter.id)" @click="addFilter(filter.id)">
+                      {{ isFilterActive(filter.id) ? '已添加' : '添加' }}
+                    </button>
+                  </article>
+                </template>
+              </template>
+            </div>
+          </section>
+          <footer class="settings-footer">
+            <button type="button" @click="clearFilters">清除全部</button>
+            <button type="button" @click="closeFilterEditor">确定</button>
+          </footer>
+        </div>
       </div>
 
       <div class="modal-backdrop" v-if="chooser.open">

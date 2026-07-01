@@ -205,6 +205,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/api/scan/cancel", s.handleScanCancel)
 	mux.HandleFunc("/api/tasks", s.handleTasks)
 	mux.HandleFunc("/api/items", s.handleItems)
+	mux.HandleFunc("/api/artwork", s.handleArtwork)
 	mux.HandleFunc("/api/browse", s.handleBrowse)
 	mux.HandleFunc("/api/search", s.handleSearch)
 	mux.HandleFunc("/api/metadata", s.handleMetadata)
@@ -487,6 +488,26 @@ func (s *Server) handleItems(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]interface{}{"items": items, "count": len(items)})
 }
 
+func (s *Server) handleArtwork(w http.ResponseWriter, r *http.Request) {
+	itemID := r.URL.Query().Get("id")
+	artType := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("type")))
+	if itemID == "" || (artType != "poster" && artType != "fanart") {
+		http.Error(w, "id and type=poster|fanart are required", http.StatusBadRequest)
+		return
+	}
+	item, ok := s.findItem(itemID)
+	if !ok {
+		http.Error(w, "item not found", http.StatusNotFound)
+		return
+	}
+	path := artworkPath(item, artType)
+	if path == "" {
+		http.NotFound(w, r)
+		return
+	}
+	http.ServeFile(w, r, path)
+}
+
 func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
@@ -708,6 +729,14 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 			if input.WriteMeta {
 				updated[i].MatchedID = show.ID
 				updated[i].MatchedName = show.Title
+				updated[i].TitleGuess = firstNonEmpty(show.Title, updated[i].TitleGuess)
+				updated[i].ShowGuess = firstNonEmpty(show.Title, updated[i].ShowGuess)
+				updated[i].Original = show.Original
+				updated[i].Overview = show.Overview
+				updated[i].Rating = show.VoteAverage
+				updated[i].Genres = show.Genres
+				updated[i].Premiered = show.FirstAirDate
+				updated[i].YearGuess = firstNonEmpty(yearFromDate(show.FirstAirDate), updated[i].YearGuess)
 			}
 			if input.WriteImages {
 				if scope == "season" {
@@ -764,6 +793,15 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 	if input.WriteMeta {
 		item.MatchedID = movie.ID
 		item.MatchedName = movie.Title
+		item.TitleGuess = firstNonEmpty(movie.Title, item.TitleGuess)
+		item.Original = movie.Original
+		item.Overview = movie.Overview
+		item.Runtime = movie.Runtime
+		item.Rating = movie.VoteAverage
+		item.Genres = movie.Genres
+		item.Premiered = movie.ReleaseDate
+		item.YearGuess = firstNonEmpty(yearFromDate(movie.ReleaseDate), item.YearGuess)
+		item.IMDBID = movie.ImdbID
 	}
 	if input.WriteNFO {
 		item.HasNFO = true
@@ -932,6 +970,58 @@ func writeImages(dir string, names []string, data []byte, overwrite bool) error 
 	return firstErr
 }
 
+func artworkPath(item media.Item, artType string) string {
+	var dirs []string
+	var names []string
+	fileBase := strings.TrimSuffix(item.FileName, filepath.Ext(item.FileName))
+	if item.Kind == "tvshow" {
+		showDir := tvShowRootDir(item)
+		seasonDir := tvSeasonDir(item, showDir)
+		if artType == "poster" {
+			if item.Season > 0 && seasonDir != "" {
+				dirs = append(dirs, seasonDir, showDir)
+				names = append(names, seasonPosterNames(item.Season)...)
+			} else {
+				dirs = append(dirs, showDir)
+			}
+			names = append(names, defaultTVShowPosterNames()...)
+		} else {
+			if item.Season > 0 && seasonDir != "" {
+				dirs = append(dirs, seasonDir, showDir)
+				names = append(names, seasonFanartNames(item.Season)...)
+			} else {
+				dirs = append(dirs, showDir)
+			}
+			names = append(names, defaultTVShowFanartNames()...)
+		}
+	} else {
+		dirs = append(dirs, item.Dir)
+		if artType == "poster" {
+			names = append(names, "poster.jpg", "folder.jpg", fileBase+"-poster.jpg")
+		} else {
+			names = append(names, "fanart.jpg", "backdrop.jpg", fileBase+"-fanart.jpg")
+		}
+	}
+	seen := map[string]bool{}
+	for _, dir := range dirs {
+		if dir == "" {
+			continue
+		}
+		for _, name := range names {
+			name = strings.ReplaceAll(name, "{filename}", fileBase)
+			path := filepath.Join(dir, filepath.Base(name))
+			if seen[path] {
+				continue
+			}
+			seen[path] = true
+			if stat, err := os.Stat(path); err == nil && !stat.IsDir() {
+				return path
+			}
+		}
+	}
+	return ""
+}
+
 func imageNames(configured string, legacy string, defaults []string, item media.Item) []string {
 	values := splitConfiguredNames(configured)
 	if len(values) == 0 && strings.TrimSpace(legacy) != "" {
@@ -1090,9 +1180,13 @@ func (s *Server) runScanTask(taskID string, library media.Library) {
 			task.FoundItems = progress.FoundItems
 		}
 		if progress.Item != nil {
-			s.items[progress.Item.ID] = *progress.Item
+			item := *progress.Item
+			if existing, ok := s.items[item.ID]; ok {
+				item = media.MergeScannedItem(existing, item)
+			}
+			s.items[item.ID] = item
 			if persistErr == nil {
-				pending = append(pending, *progress.Item)
+				pending = append(pending, item)
 			}
 		}
 		s.mu.Unlock()
@@ -1126,7 +1220,11 @@ func (s *Server) runScanTask(taskID string, library media.Library) {
 		_ = s.store.SaveTask(task.toRecord())
 		return
 	}
-	for _, item := range items {
+	for i, item := range items {
+		if existing, ok := s.items[item.ID]; ok {
+			item = media.MergeScannedItem(existing, item)
+			items[i] = item
+		}
 		s.items[item.ID] = item
 	}
 	if err := s.store.PruneLibraryItems(library.ID, items); err != nil {
@@ -1172,8 +1270,16 @@ func (s *Server) loadItems() error {
 	if err != nil {
 		return err
 	}
+	var backfill []media.Item
 	for _, item := range items {
+		if item.DateAdded == "" {
+			item.DateAdded = time.Now().UTC().Format(time.RFC3339)
+			backfill = append(backfill, item)
+		}
 		s.items[item.ID] = item
+	}
+	if len(backfill) > 0 {
+		return s.store.SaveItems(backfill)
 	}
 	return nil
 }
@@ -1256,6 +1362,22 @@ func defaultString(value string, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func yearFromDate(value string) string {
+	if len(value) >= 4 {
+		return value[:4]
+	}
+	return ""
 }
 
 func defaultImageNames(value string, legacy string, fallback []string) string {

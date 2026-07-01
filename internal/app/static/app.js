@@ -71,8 +71,15 @@ createApp({
         entries: [],
       },
       query: "",
-      activeFilter: "all",
+      filters: [],
+      filterEditor: {
+        open: false,
+        tab: "details",
+      },
+      sortKey: "title",
+      sortDirection: "asc",
       detailTab: "info",
+      selectedEntity: null,
       expandedShows: {},
       expandedSeasons: {},
       contextMenu: {
@@ -209,41 +216,191 @@ createApp({
     selectedScanning() {
       return this.selectedTask && this.selectedTask.state === "running";
     },
+    filterGroups() {
+      const groups = [
+        {
+          id: "details",
+          label: "详情",
+          filters: [
+            { id: "allInOne", label: "全部字段", type: "text", available: true },
+            { id: "title", label: "片名", type: "text", available: true },
+            { id: "originalTitle", label: "原始片名", type: "text", available: true },
+            { id: "datasource", label: "数据源", type: "choice", available: true },
+            { id: "dateAdded", label: "添加日期", type: "date", available: true },
+            { id: "filename", label: "文件名", type: "text", available: true },
+            { id: "path", label: "路径", type: "text", available: true },
+            { id: "new", label: this.activeModule === "tvshow" ? "新剧集" : "新电影", type: "boolean", available: true },
+            { id: "duplicate", label: this.activeModule === "tvshow" ? "重复剧集" : "重复电影", type: "boolean", available: false },
+            { id: "watched", label: "已观看", type: "boolean", available: false },
+            { id: "locked", label: "已锁定", type: "boolean", available: false },
+          ],
+        },
+        {
+          id: "metadata",
+          label: "元数据",
+          filters: [
+            { id: "year", label: "年份", type: "number", available: true },
+            { id: "decade", label: "年代", type: "choice", available: true },
+            { id: "rating", label: "评分", type: "number", available: true },
+            { id: "runtime", label: "片长", type: "number", available: this.activeModule === "movie" },
+            { id: "genre", label: "类型", type: "choice", available: true },
+            { id: "tmdbId", label: "TMDb ID", type: "number", available: true },
+            { id: "imdbId", label: "IMDb ID", type: "text", available: true },
+            { id: "missingMetadata", label: "缺少元数据", type: "boolean", available: true },
+            { id: "missingArtwork", label: "缺少图片", type: "boolean", available: true },
+            { id: "missingSubtitles", label: "缺少字幕", type: "boolean", available: true },
+            { id: "cast", label: "演员", type: "choice", available: false },
+            { id: "country", label: "国家", type: "choice", available: false },
+            { id: "certification", label: "分级", type: "choice", available: false },
+            { id: "tag", label: "标签", type: "choice", available: false },
+            { id: "note", label: "备注", type: "text", available: false },
+            { id: "episodeCount", label: "集数", type: "number", available: this.activeModule === "tvshow" },
+            { id: "seasonCount", label: "季数", type: "number", available: this.activeModule === "tvshow" },
+          ],
+        },
+        {
+          id: "video",
+          label: "视频",
+          filters: [
+            { id: "videoFormat", label: "视频格式", type: "choice", available: false },
+            { id: "videoCodec", label: "视频编码", type: "choice", available: false },
+            { id: "videoBitrate", label: "视频码率", type: "number", available: false },
+            { id: "videoBitdepth", label: "视频位深", type: "number", available: false },
+            { id: "videoContainer", label: "容器", type: "choice", available: false },
+            { id: "aspectRatio", label: "宽高比", type: "choice", available: false },
+            { id: "frameRate", label: "帧率", type: "number", available: false },
+            { id: "hdrFormat", label: "HDR", type: "choice", available: false },
+            { id: "videoFilesize", label: "文件大小", type: "number", available: false },
+          ],
+        },
+        {
+          id: "audio",
+          label: "音频",
+          filters: [
+            { id: "audioCodec", label: "音频编码", type: "choice", available: false },
+            { id: "audioChannels", label: "声道", type: "choice", available: false },
+            { id: "audioLanguage", label: "音频语言", type: "choice", available: false },
+            { id: "audioTitle", label: "音轨标题", type: "text", available: false },
+            { id: "audioStreamCount", label: "音轨数量", type: "number", available: false },
+          ],
+        },
+        {
+          id: "subtitles",
+          label: "字幕",
+          filters: [
+            { id: "subtitleCount", label: "字幕数量", type: "number", available: false },
+            { id: "subtitleFormat", label: "字幕格式", type: "choice", available: false },
+            { id: "subtitleLanguage", label: "字幕语言", type: "choice", available: false },
+          ],
+        },
+        {
+          id: "artwork",
+          label: "图片",
+          filters: [
+            { id: "poster", label: "海报", type: "boolean", available: true },
+            { id: "fanart", label: "同人画", type: "boolean", available: true },
+            { id: "posterSize", label: "海报尺寸", type: "number", available: false },
+            { id: "fanartSize", label: "同人画尺寸", type: "number", available: false },
+            { id: "bannerSize", label: "横幅尺寸", type: "number", available: false },
+            { id: "clearLogoSize", label: "ClearLogo 尺寸", type: "number", available: false },
+            { id: "discArtSize", label: "DiscArt 尺寸", type: "number", available: false },
+          ],
+        },
+      ];
+      if (this.activeModule === "movie") {
+        groups[1].filters.push({ id: "inMovieSet", label: "属于合集", type: "boolean", available: false });
+      } else {
+        groups[1].filters.push({ id: "status", label: "剧集状态", type: "choice", available: false });
+        groups[1].filters.push({ id: "missingEpisodes", label: "缺少集", type: "boolean", available: false });
+        groups[1].filters.push({ id: "uncategorizedEpisodes", label: "未分类集", type: "boolean", available: false });
+      }
+      return groups;
+    },
+    filterDefinitions() {
+      const map = new Map();
+      for (const group of this.filterGroups) {
+        for (const filter of group.filters) {
+          map.set(filter.id, { ...filter, group: group.id, groupLabel: group.label });
+        }
+      }
+      return map;
+    },
+    activeFilters() {
+      return this.filters.filter((filter) => {
+        const definition = this.filterDefinitions.get(filter.id);
+        return definition && definition.available && filter.enabled !== false;
+      });
+    },
+    sortOptions() {
+      const base = [
+        { id: "title", label: "片名" },
+        { id: "originalTitle", label: "原始片名" },
+        { id: "year", label: "年份" },
+        { id: "rating", label: "评分" },
+        { id: "dateAdded", label: "添加日期" },
+        { id: "metadata", label: "元数据" },
+        { id: "artwork", label: "图片" },
+        { id: "datasource", label: "数据源" },
+      ];
+      if (this.activeModule === "movie") {
+        base.push({ id: "runtime", label: "片长" });
+      } else {
+        base.push({ id: "season", label: "季" }, { id: "episode", label: "集" }, { id: "episodeCount", label: "集数" });
+      }
+      return base;
+    },
+    datasourceOptions() {
+      return (this.selectedLibrary ? this.selectedLibrary.paths || [this.selectedLibrary.path] : []).filter(Boolean);
+    },
+    genreOptions() {
+      const values = new Set();
+      for (const item of this.items) {
+        for (const genre of item.genres || []) {
+          if (genre) values.add(genre);
+        }
+      }
+      return Array.from(values).sort((a, b) => a.localeCompare(b, "zh-CN"));
+    },
+    decadeOptions() {
+      const values = new Set();
+      for (const item of this.items) {
+        const year = Number(item.yearGuess || 0);
+        if (year > 0) values.add(`${Math.floor(year / 10) * 10}s`);
+      }
+      return Array.from(values).sort();
+    },
     visibleItems() {
       const query = this.query.trim().toLowerCase();
-      return this.items.filter((item) => {
+      const tvStats = this.activeModule === "tvshow" ? this.buildTVStats(this.items) : null;
+      const filtered = this.items.filter((item) => {
         const haystack = [item.titleGuess, item.showGuess, item.fileName, item.path, item.yearGuess, item.matchedName]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
         if (query && !haystack.includes(query)) return false;
-        if (this.activeFilter === "missingNfo") return !item.hasNfo;
-        if (this.activeFilter === "missingArtwork") return !item.hasPoster || !item.hasFanart;
-        if (this.activeFilter === "matched") return !!item.matchedName;
-        return true;
+        return this.activeFilters.every((filter) => this.filterAcceptsItem(filter, item, tvStats));
       });
+      return filtered;
     },
     movieRows() {
-      return this.visibleItems.slice().sort((a, b) => {
-        const title = (a.titleGuess || "").localeCompare(b.titleGuess || "", "zh-CN");
-        if (title !== 0) return title;
-        return (a.yearGuess || "").localeCompare(b.yearGuess || "");
-      });
+      return this.sortItems(this.visibleItems.slice());
     },
     tvTree() {
       const shows = new Map();
       for (const item of this.visibleItems) {
         const showName = item.showGuess || item.titleGuess || "未知剧集";
         if (!shows.has(showName)) {
-          shows.set(showName, { key: showName, title: showName, episodes: 0, seasons: new Map() });
+          shows.set(showName, { key: showName, title: showName, episodes: 0, seasons: new Map(), items: [] });
         }
         const show = shows.get(showName);
+        show.items.push(item);
         const seasonNumber = item.season || 0;
         const seasonKey = `${showName}::${seasonNumber}`;
         if (!show.seasons.has(seasonKey)) {
           show.seasons.set(seasonKey, {
             key: seasonKey,
             showKey: showName,
+            showTitle: showName,
             season: seasonNumber,
             title: seasonNumber ? `Season ${String(seasonNumber).padStart(2, "0")}` : "未识别季",
             items: [],
@@ -252,17 +409,16 @@ createApp({
         show.seasons.get(seasonKey).items.push(item);
         show.episodes += 1;
       }
-      return Array.from(shows.values())
+      return this.sortShows(Array.from(shows.values()))
         .map((show) => ({
           ...show,
           seasons: Array.from(show.seasons.values())
             .map((season) => ({
               ...season,
-              items: season.items.slice().sort((a, b) => (a.episode || 0) - (b.episode || 0) || a.fileName.localeCompare(b.fileName)),
+              items: this.sortEpisodes(season.items.slice()),
             }))
             .sort((a, b) => a.season - b.season),
-        }))
-        .sort((a, b) => a.title.localeCompare(b.title, "zh-CN"));
+        }));
     },
     allTasks() {
       return Object.values(this.tasks)
@@ -298,8 +454,40 @@ createApp({
       return this.settingsActiveSection;
     },
     detailTitle() {
-      if (!this.selectedItem) return "";
-      return this.selectedItem.kind === "tvshow" ? this.selectedItem.showGuess || this.selectedItem.titleGuess : this.selectedItem.titleGuess;
+      if (!this.selectedSummary) return "";
+      return this.selectedSummary.title;
+    },
+    selectedSummary() {
+      if (this.selectedEntity && this.selectedEntity.kind === "show") {
+        const show = this.selectedEntity.payload;
+        const first = this.firstTVItem(show);
+        return this.buildSummary(first, {
+          entityType: "show",
+          title: show.title,
+          subtitle: `${show.seasons.length} 季 / ${show.episodes} 集`,
+          year: first ? first.yearGuess : "",
+          itemCount: show.episodes,
+        });
+      }
+      if (this.selectedEntity && this.selectedEntity.kind === "season") {
+        const season = this.selectedEntity.payload;
+        const first = season.items[0];
+        return this.buildSummary(first, {
+          entityType: "season",
+          title: `${season.showTitle || (first && first.showGuess) || ""} ${season.title}`.trim(),
+          subtitle: `${season.items.length} 集`,
+          year: first ? first.yearGuess : "",
+          season: season.season,
+          itemCount: season.items.length,
+        });
+      }
+      if (!this.selectedItem) return null;
+      return this.buildSummary(this.selectedItem, {
+        entityType: this.selectedItem.kind === "tvshow" ? "episode" : "movie",
+        title: this.selectedItem.kind === "tvshow" ? this.selectedItem.showGuess || this.selectedItem.titleGuess : this.selectedItem.titleGuess,
+        subtitle: this.selectedItem.kind === "tvshow" ? this.itemSeasonText(this.selectedItem) : this.selectedItem.originalTitle || this.selectedItem.original || "",
+        year: this.selectedItem.yearGuess,
+      });
     },
   },
   async mounted() {
@@ -316,6 +504,349 @@ createApp({
     window.removeEventListener("keydown", this.handleKeydown);
   },
   methods: {
+    filterDefinition(id) {
+      return this.filterDefinitions.get(id) || null;
+    },
+    openFilterEditor() {
+      this.filterEditor.open = true;
+      this.filterEditor.tab = this.filterGroups[0] ? this.filterGroups[0].id : "details";
+    },
+    closeFilterEditor() {
+      this.filterEditor.open = false;
+    },
+    isFilterActive(id) {
+      return this.filters.some((filter) => filter.id === id);
+    },
+    addFilter(id) {
+      const definition = this.filterDefinition(id);
+      if (!definition || !definition.available || this.isFilterActive(id)) return;
+      this.filters.push(this.defaultFilter(definition));
+    },
+    removeFilter(index) {
+      this.filters.splice(index, 1);
+    },
+    clearFilters() {
+      this.query = "";
+      this.filters = [];
+    },
+    defaultFilter(definition) {
+      const filter = {
+        id: definition.id,
+        enabled: true,
+        invert: false,
+        operator: "contains",
+        value: "",
+        valueHigh: "",
+      };
+      if (definition.type === "number") {
+        filter.operator = "between";
+        if (definition.id === "year") {
+          const year = new Date().getFullYear();
+          filter.value = String(year);
+          filter.valueHigh = String(year);
+        }
+      } else if (definition.type === "date") {
+        filter.operator = "is";
+        filter.value = this.todayValue();
+      } else if (definition.type === "boolean") {
+        filter.operator = "is";
+        filter.value = "true";
+      } else if (definition.type === "choice") {
+        filter.operator = "is";
+      }
+      return filter;
+    },
+    filterOperatorOptions(filter) {
+      const definition = this.filterDefinition(filter.id);
+      if (!definition) return [];
+      if (definition.type === "number") {
+        return [
+          { id: "between", label: "介于" },
+          { id: "equals", label: "等于" },
+          { id: "gte", label: "大于等于" },
+          { id: "lte", label: "小于等于" },
+        ];
+      }
+      if (definition.type === "date") {
+        return [
+          { id: "is", label: "等于" },
+          { id: "after", label: "之后" },
+          { id: "before", label: "之前" },
+          { id: "lastDays", label: "最近 N 天" },
+        ];
+      }
+      if (definition.type === "boolean") {
+        return [
+          { id: "is", label: "是" },
+          { id: "not", label: "不是" },
+        ];
+      }
+      if (definition.type === "choice") {
+        return [
+          { id: "is", label: "是" },
+          { id: "contains", label: "包含" },
+        ];
+      }
+      return [
+        { id: "contains", label: "包含" },
+        { id: "equals", label: "等于" },
+        { id: "starts", label: "开头是" },
+        { id: "ends", label: "结尾是" },
+      ];
+    },
+    filterInputType(filter) {
+      const definition = this.filterDefinition(filter.id);
+      if (!definition) return "text";
+      if (definition.type === "number") return "number";
+      if (definition.type === "date" && filter.operator !== "lastDays") return "date";
+      return "text";
+    },
+    filterValueOptions(filter) {
+      if (filter.id === "datasource") return this.datasourceOptions;
+      if (filter.id === "genre") return this.genreOptions;
+      if (filter.id === "decade") return this.decadeOptions;
+      return [];
+    },
+    filterAcceptsItem(filter, item, tvStats = null) {
+      const definition = this.filterDefinition(filter.id);
+      if (!definition || !definition.available) return true;
+      let accepted = true;
+      if (definition.type === "number") {
+        accepted = this.matchNumber(this.filterFieldValue(filter.id, item, tvStats), filter);
+      } else if (definition.type === "date") {
+        accepted = this.matchDate(item.dateAdded, filter);
+      } else if (definition.type === "boolean") {
+        accepted = this.matchBoolean(this.filterFieldValue(filter.id, item, tvStats), filter);
+      } else if (definition.type === "choice") {
+        accepted = this.matchChoice(this.filterFieldValue(filter.id, item, tvStats), filter);
+      } else {
+        accepted = this.matchText(this.filterFieldValue(filter.id, item, tvStats), filter);
+      }
+      return filter.invert ? !accepted : accepted;
+    },
+    filterFieldValue(id, item, tvStats = null) {
+      switch (id) {
+        case "allInOne":
+          return [item.titleGuess, item.showGuess, item.originalTitle || item.original, item.yearGuess, item.matchedName, item.fileName, item.path, item.imdbId, item.matchedId, ...(item.genres || [])].join(" ");
+        case "title":
+          return item.kind === "tvshow" ? item.showGuess || item.titleGuess : item.titleGuess;
+        case "originalTitle":
+          return item.originalTitle || item.original || "";
+        case "datasource":
+          return item.sourcePath || "";
+        case "filename":
+          return item.fileName || "";
+        case "path":
+          return item.path || item.dir || "";
+        case "new":
+          return this.isNewItem(item);
+        case "year":
+          return Number(item.yearGuess || 0);
+        case "decade": {
+          const year = Number(item.yearGuess || 0);
+          return year > 0 ? `${Math.floor(year / 10) * 10}s` : "";
+        }
+        case "rating":
+          return Number(item.rating || 0);
+        case "runtime":
+          return Number(item.runtime || 0);
+        case "genre":
+          return item.genres || [];
+        case "tmdbId":
+          return Number(item.matchedId || 0);
+        case "imdbId":
+          return item.imdbId || "";
+        case "missingMetadata":
+          return !item.hasNfo || !item.matchedName;
+        case "missingArtwork":
+          return !item.hasPoster || !item.hasFanart;
+        case "missingSubtitles":
+          return !item.hasSubtitle;
+        case "poster":
+          return !!item.hasPoster;
+        case "fanart":
+          return !!item.hasFanart;
+        case "episodeCount":
+          return this.tvStatForItem(item, tvStats).episodes;
+        case "seasonCount":
+          return this.tvStatForItem(item, tvStats).seasons;
+        default:
+          return "";
+      }
+    },
+    buildTVStats(items) {
+      const stats = new Map();
+      for (const item of items) {
+        const key = item.showGuess || item.titleGuess || "";
+        if (!key) continue;
+        if (!stats.has(key)) stats.set(key, { episodes: 0, seasons: new Set() });
+        const stat = stats.get(key);
+        stat.episodes += 1;
+        stat.seasons.add(item.season || 0);
+      }
+      return stats;
+    },
+    tvStatForItem(item, stats) {
+      const key = item.showGuess || item.titleGuess || "";
+      const stat = stats && stats.get(key);
+      if (!stat) return { episodes: 0, seasons: 0 };
+      return { episodes: stat.episodes, seasons: stat.seasons.size };
+    },
+    matchText(value, filter) {
+      const actual = String(value || "").toLowerCase();
+      const expected = String(filter.value || "").toLowerCase();
+      if (!expected) return true;
+      if (filter.operator === "equals") return actual === expected;
+      if (filter.operator === "starts") return actual.startsWith(expected);
+      if (filter.operator === "ends") return actual.endsWith(expected);
+      return actual.includes(expected);
+    },
+    matchNumber(value, filter) {
+      const actual = Number(value || 0);
+      const low = Number(filter.value || 0);
+      const high = Number(filter.valueHigh || filter.value || 0);
+      if (filter.operator === "equals") return actual === low;
+      if (filter.operator === "gte") return actual >= low;
+      if (filter.operator === "lte") return actual <= low;
+      return actual >= Math.min(low, high) && actual <= Math.max(low, high);
+    },
+    matchChoice(value, filter) {
+      const expected = String(filter.value || "").toLowerCase();
+      if (!expected) return true;
+      const values = Array.isArray(value) ? value : [value];
+      return values.some((entry) => {
+        const actual = String(entry || "").toLowerCase();
+        return filter.operator === "contains" ? actual.includes(expected) : actual === expected;
+      });
+    },
+    matchBoolean(value, filter) {
+      const expected = filter.operator === "not" ? false : String(filter.value || "true") !== "false";
+      return Boolean(value) === expected;
+    },
+    matchDate(value, filter) {
+      const actual = this.dateOnly(value);
+      if (!actual) return false;
+      if (filter.operator === "lastDays") {
+        const days = Math.max(1, Number(filter.value || 1));
+        const since = new Date();
+        since.setHours(0, 0, 0, 0);
+        since.setDate(since.getDate() - days + 1);
+        return actual >= since;
+      }
+      const expected = this.dateOnly(filter.value);
+      if (!expected) return true;
+      if (filter.operator === "after") return actual >= expected;
+      if (filter.operator === "before") return actual <= expected;
+      return actual.getTime() === expected.getTime();
+    },
+    dateOnly(value) {
+      if (!value) return null;
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return null;
+      date.setHours(0, 0, 0, 0);
+      return date;
+    },
+    todayValue() {
+      return new Date().toISOString().slice(0, 10);
+    },
+    isNewItem(item) {
+      const date = this.dateOnly(item.dateAdded);
+      if (!date) return false;
+      const since = new Date();
+      since.setHours(0, 0, 0, 0);
+      since.setDate(since.getDate() - 30);
+      return date >= since;
+    },
+    sortItems(items) {
+      const direction = this.sortDirection === "desc" ? -1 : 1;
+      return items.sort((a, b) => {
+        const result = this.compareSortValue(a, b, this.sortKey);
+        if (result !== 0) return result * direction;
+        return this.compareText(a.titleGuess || a.fileName, b.titleGuess || b.fileName);
+      });
+    },
+    sortEpisodes(items) {
+      if (this.sortKey === "dateAdded" || this.sortKey === "rating" || this.sortKey === "year") return this.sortItems(items);
+      return items.sort((a, b) => (a.season || 0) - (b.season || 0) || (a.episode || 0) - (b.episode || 0) || this.compareText(a.fileName, b.fileName));
+    },
+    sortShows(shows) {
+      const direction = this.sortDirection === "desc" ? -1 : 1;
+      return shows.sort((a, b) => {
+        const firstA = this.firstTVItem(a);
+        const firstB = this.firstTVItem(b);
+        if (this.sortKey === "episodeCount") return (a.episodes - b.episodes) * direction;
+        const result = this.compareSortValue(firstA || {}, firstB || {}, this.sortKey);
+        if (result !== 0) return result * direction;
+        return this.compareText(a.title, b.title);
+      });
+    },
+    compareSortValue(a, b, key) {
+      if (["year", "rating", "runtime", "season", "episode"].includes(key)) {
+        return Number(a[this.sortFieldName(key)] || 0) - Number(b[this.sortFieldName(key)] || 0);
+      }
+      if (key === "dateAdded") return this.compareDate(a.dateAdded, b.dateAdded);
+      if (key === "metadata") return Number(!!a.hasNfo) - Number(!!b.hasNfo);
+      if (key === "artwork") return this.artworkScore(a) - this.artworkScore(b);
+      if (key === "datasource") return this.compareText(a.sourcePath, b.sourcePath);
+      if (key === "originalTitle") return this.compareText(a.originalTitle || a.original, b.originalTitle || b.original);
+      return this.compareText(a.kind === "tvshow" ? a.showGuess || a.titleGuess : a.titleGuess, b.kind === "tvshow" ? b.showGuess || b.titleGuess : b.titleGuess);
+    },
+    sortFieldName(key) {
+      if (key === "year") return "yearGuess";
+      if (key === "rating") return "rating";
+      if (key === "runtime") return "runtime";
+      if (key === "season") return "season";
+      if (key === "episode") return "episode";
+      return key;
+    },
+    compareText(a, b) {
+      return String(a || "").localeCompare(String(b || ""), "zh-CN", { numeric: true, sensitivity: "base" });
+    },
+    compareDate(a, b) {
+      return (this.dateOnly(a)?.getTime() || 0) - (this.dateOnly(b)?.getTime() || 0);
+    },
+    artworkScore(item) {
+      return Number(!!item.hasPoster) + Number(!!item.hasFanart);
+    },
+    formatDate(value) {
+      const date = this.dateOnly(value);
+      if (!date) return "-";
+      return date.toLocaleDateString("zh-CN");
+    },
+    formatRating(value) {
+      const rating = Number(value || 0);
+      return rating > 0 ? rating.toFixed(1) : "-";
+    },
+    artworkURL(item, type) {
+      if (!item || (type === "poster" && !item.hasPoster) || (type === "fanart" && !item.hasFanart)) return "";
+      return `/api/artwork?id=${encodeURIComponent(item.id)}&type=${encodeURIComponent(type)}&v=${encodeURIComponent(item.dateAdded || item.matchedId || "")}`;
+    },
+    buildSummary(item, overrides = {}) {
+      const fallback = item || {};
+      return {
+        item: fallback,
+        entityType: overrides.entityType || fallback.kind || "movie",
+        title: overrides.title || fallback.titleGuess || fallback.showGuess || "未命名",
+        subtitle: overrides.subtitle || fallback.originalTitle || fallback.original || "",
+        year: overrides.year || fallback.yearGuess || "",
+        season: overrides.season || fallback.season || 0,
+        itemCount: overrides.itemCount || 1,
+        poster: this.artworkURL(fallback, "poster"),
+        fanart: this.artworkURL(fallback, "fanart"),
+        rating: fallback.rating || 0,
+        genres: fallback.genres || [],
+        overview: fallback.overview || "",
+        dateAdded: fallback.dateAdded || "",
+        matchedName: fallback.matchedName || "",
+        matchedId: fallback.matchedId || 0,
+        imdbId: fallback.imdbId || "",
+        hasNfo: !!fallback.hasNfo,
+        hasPoster: !!fallback.hasPoster,
+        hasFanart: !!fallback.hasFanart,
+        hasSubtitle: !!fallback.hasSubtitle,
+        sourcePath: fallback.sourcePath || "",
+      };
+    },
     async api(path, options = {}) {
       const response = await fetch(path, {
         headers: { "Content-Type": "application/json" },
@@ -537,7 +1068,9 @@ createApp({
       this.newLibrary.type = module;
       this.newLibrary.name = module === "tvshow" ? "电视剧" : "电影";
       this.query = "";
-      this.activeFilter = "all";
+      this.filters = [];
+      this.sortKey = "title";
+      this.sortDirection = "asc";
       const first = this.filteredLibraries[0];
       if (first) {
         await this.selectLibrary(first);
@@ -545,6 +1078,7 @@ createApp({
         this.selectedLibrary = null;
         this.items = [];
         this.selectedItem = null;
+        this.selectedEntity = null;
         this.status = `未配置${this.moduleTitle}数据源`;
       }
     },
@@ -651,9 +1185,9 @@ createApp({
       this.selectedLibrary = library;
       this.items = [];
       this.selectedItem = null;
+      this.selectedEntity = null;
       this.candidates = [];
       this.renamePreview = null;
-      this.detailTab = "info";
       await this.loadTasks(library);
       await this.loadItems(library);
     },
@@ -702,6 +1236,7 @@ createApp({
     },
     selectItem(item) {
       this.selectedItem = item;
+      this.selectedEntity = { kind: item.kind === "tvshow" ? "episode" : "movie", payload: item };
       this.candidates = [];
       this.rename.pattern =
         item.kind === "tvshow"
@@ -713,7 +1248,6 @@ createApp({
       this.scrapeSearch.query = item.titleGuess || item.showGuess || "";
       this.scrapeSearch.year = item.yearGuess || "";
       this.renamePreview = null;
-      this.detailTab = "info";
     },
     handleKeydown(event) {
       if (event.key === "Escape") {
@@ -731,7 +1265,7 @@ createApp({
       };
       if (scope === "movie" || scope === "episode") this.selectItem(payload);
       if (scope === "show") this.selectTvGroup("show", payload);
-      if (scope === "season") this.selectTvGroup("season", payload);
+      if (scope === "season") this.selectTvGroup("season", payload.season || payload);
     },
     closeContextMenu() {
       this.contextMenu.open = false;
@@ -741,6 +1275,46 @@ createApp({
       if (this.contextMenu.scope === "season") return "搜索并刮削本季...";
       if (this.contextMenu.scope === "episode") return "搜索并刮削本集...";
       return "搜索并刮削...";
+    },
+    openChooserFromSelected() {
+      if (!this.selectedItem) return;
+      if (this.selectedEntity && this.selectedEntity.kind === "show") {
+        const show = this.selectedEntity.payload;
+        const first = this.firstTVItem(show);
+        this.openChooser({
+          scope: "show",
+          mediaType: "tvshow",
+          targetItem: first,
+          targetShow: show,
+          query: show.title || show.key || "",
+          year: first ? first.yearGuess || "" : "",
+          path: first ? this.showRootPath(first) : show.title,
+        });
+        return;
+      }
+      if (this.selectedEntity && this.selectedEntity.kind === "season") {
+        const season = this.selectedEntity.payload;
+        const first = season.items[0];
+        this.openChooser({
+          scope: "season",
+          mediaType: "tvshow",
+          targetItem: first,
+          targetShow: { title: season.showTitle, key: season.showKey },
+          targetSeason: season,
+          query: season.showTitle || "",
+          year: first ? first.yearGuess || "" : "",
+          path: first ? this.showRootPath(first) : season.showTitle,
+        });
+        return;
+      }
+      this.openChooser({
+        scope: this.selectedItem.kind === "tvshow" ? "episode" : "movie",
+        mediaType: this.selectedItem.kind === "tvshow" ? "tvshow" : "movie",
+        targetItem: this.selectedItem,
+        query: this.selectedItem.kind === "tvshow" ? this.selectedItem.showGuess || this.selectedItem.titleGuess : this.selectedItem.titleGuess,
+        year: this.selectedItem.yearGuess || "",
+        path: this.selectedItem.path || this.selectedItem.dir || "",
+      });
     },
     openChooserFromContext() {
       const scope = this.contextMenu.scope;
@@ -957,9 +1531,6 @@ createApp({
         this.chooser.scraping = false;
       }
     },
-    setFilter(filter) {
-      this.activeFilter = filter;
-    },
     toggleShow(key) {
       this.expandedShows[key] = !this.isShowExpanded(key);
     },
@@ -974,10 +1545,17 @@ createApp({
     },
     selectTvGroup(kind, payload) {
       if (kind === "show") {
+        this.selectedEntity = { kind: "show", payload };
         const firstSeason = payload.seasons[0];
-        if (firstSeason && firstSeason.items[0]) this.selectItem(firstSeason.items[0]);
+        if (firstSeason && firstSeason.items[0]) {
+          this.selectItem(firstSeason.items[0]);
+          this.selectedEntity = { kind: "show", payload };
+        }
       }
-      if (kind === "season" && payload.items[0]) this.selectItem(payload.items[0]);
+      if (kind === "season" && payload.items[0]) {
+        this.selectItem(payload.items[0]);
+        this.selectedEntity = { kind: "season", payload };
+      }
     },
     itemSeasonText(item) {
       if (item.kind !== "tvshow") return item.yearGuess || "-";
@@ -1035,7 +1613,6 @@ createApp({
       if (!this.selectedItem) return;
       this.busy = true;
       this.status = "正在搜索 TMDb 候选";
-      this.detailTab = "scrape";
       try {
         const params = new URLSearchParams();
         const query = this.scrapeSearch.query.trim();
@@ -1088,7 +1665,6 @@ createApp({
       if (!this.selectedItem) return;
       this.busy = true;
       this.status = "正在生成重命名预览";
-      this.detailTab = "rename";
       try {
         this.renamePreview = await this.api("/api/rename/preview", {
           method: "POST",

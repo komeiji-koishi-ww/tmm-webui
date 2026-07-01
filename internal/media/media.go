@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"tmmweb/internal/nfo"
 )
 
 var ErrScanCanceled = errors.New("scan canceled")
@@ -51,27 +53,35 @@ type Library struct {
 }
 
 type Item struct {
-	ID          string `json:"id"`
-	LibraryID   string `json:"libraryId"`
-	SourcePath  string `json:"sourcePath"`
-	Kind        string `json:"kind"`
-	Path        string `json:"path"`
-	Dir         string `json:"dir"`
-	FileName    string `json:"fileName"`
-	TitleGuess  string `json:"titleGuess"`
-	YearGuess   string `json:"yearGuess,omitempty"`
-	ShowGuess   string `json:"showGuess,omitempty"`
-	Season      int    `json:"season,omitempty"`
-	Episode     int    `json:"episode,omitempty"`
-	Episodes    []int  `json:"episodes,omitempty"`
-	AirDate     string `json:"airDate,omitempty"`
-	MediaType   string `json:"mediaType"`
-	HasNFO      bool   `json:"hasNfo"`
-	HasPoster   bool   `json:"hasPoster"`
-	HasFanart   bool   `json:"hasFanart"`
-	HasSubtitle bool   `json:"hasSubtitle"`
-	MatchedID   int    `json:"matchedId,omitempty"`
-	MatchedName string `json:"matchedName,omitempty"`
+	ID          string   `json:"id"`
+	LibraryID   string   `json:"libraryId"`
+	SourcePath  string   `json:"sourcePath"`
+	Kind        string   `json:"kind"`
+	Path        string   `json:"path"`
+	Dir         string   `json:"dir"`
+	FileName    string   `json:"fileName"`
+	TitleGuess  string   `json:"titleGuess"`
+	YearGuess   string   `json:"yearGuess,omitempty"`
+	Original    string   `json:"originalTitle,omitempty"`
+	Overview    string   `json:"overview,omitempty"`
+	Runtime     int      `json:"runtime,omitempty"`
+	Rating      float64  `json:"rating,omitempty"`
+	Genres      []string `json:"genres,omitempty"`
+	Premiered   string   `json:"premiered,omitempty"`
+	DateAdded   string   `json:"dateAdded,omitempty"`
+	IMDBID      string   `json:"imdbId,omitempty"`
+	ShowGuess   string   `json:"showGuess,omitempty"`
+	Season      int      `json:"season,omitempty"`
+	Episode     int      `json:"episode,omitempty"`
+	Episodes    []int    `json:"episodes,omitempty"`
+	AirDate     string   `json:"airDate,omitempty"`
+	MediaType   string   `json:"mediaType"`
+	HasNFO      bool     `json:"hasNfo"`
+	HasPoster   bool     `json:"hasPoster"`
+	HasFanart   bool     `json:"hasFanart"`
+	HasSubtitle bool     `json:"hasSubtitle"`
+	MatchedID   int      `json:"matchedId,omitempty"`
+	MatchedName string   `json:"matchedName,omitempty"`
 }
 
 type RenamePreview struct {
@@ -186,6 +196,7 @@ func NormalizePaths(library Library) []string {
 func NewItem(library Library, sourcePath string, path string, fileName string) Item {
 	title, year := GuessTitleYear(fileName)
 	dir := filepath.Dir(path)
+	now := time.Now().UTC().Format(time.RFC3339)
 	item := Item{
 		ID:          stableID(path),
 		LibraryID:   library.ID,
@@ -196,6 +207,7 @@ func NewItem(library Library, sourcePath string, path string, fileName string) I
 		FileName:    fileName,
 		TitleGuess:  title,
 		YearGuess:   year,
+		DateAdded:   now,
 		MediaType:   ClassifyMediaFile(path),
 		HasNFO:      exists(filepath.Join(dir, "movie.nfo")) || exists(strings.TrimSuffix(path, filepath.Ext(path))+".nfo"),
 		HasPoster:   hasAny(dir, []string{"poster.jpg", "folder.jpg", strings.TrimSuffix(fileName, filepath.Ext(fileName)) + "-poster.jpg"}),
@@ -215,7 +227,92 @@ func NewItem(library Library, sourcePath string, path string, fileName string) I
 		item.HasPoster = hasAny(showDir, []string{"poster.jpg", "folder.jpg"})
 		item.HasFanart = hasAny(showDir, []string{"fanart.jpg", "backdrop.jpg"})
 	}
+	applyNFOSummary(&item)
 	return item
+}
+
+func MergeScannedItem(existing Item, scanned Item) Item {
+	if existing.DateAdded != "" {
+		scanned.DateAdded = existing.DateAdded
+	}
+	if scanned.MatchedID == 0 && existing.MatchedID != 0 {
+		scanned.MatchedID = existing.MatchedID
+	}
+	if scanned.MatchedName == "" && existing.MatchedName != "" {
+		scanned.MatchedName = existing.MatchedName
+	}
+	if scanned.Original == "" && existing.Original != "" {
+		scanned.Original = existing.Original
+	}
+	if scanned.Overview == "" && existing.Overview != "" {
+		scanned.Overview = existing.Overview
+	}
+	if scanned.Runtime == 0 && existing.Runtime != 0 {
+		scanned.Runtime = existing.Runtime
+	}
+	if scanned.Rating == 0 && existing.Rating != 0 {
+		scanned.Rating = existing.Rating
+	}
+	if len(scanned.Genres) == 0 && len(existing.Genres) > 0 {
+		scanned.Genres = existing.Genres
+	}
+	if scanned.Premiered == "" && existing.Premiered != "" {
+		scanned.Premiered = existing.Premiered
+	}
+	if scanned.IMDBID == "" && existing.IMDBID != "" {
+		scanned.IMDBID = existing.IMDBID
+	}
+	if scanned.YearGuess == "" && existing.YearGuess != "" {
+		scanned.YearGuess = existing.YearGuess
+	}
+	if scanned.TitleGuess == "" && existing.TitleGuess != "" {
+		scanned.TitleGuess = existing.TitleGuess
+	}
+	return scanned
+}
+
+func applyNFOSummary(item *Item) {
+	for _, path := range nfoCandidates(*item) {
+		summary, err := nfo.ReadSummary(path)
+		if err != nil {
+			continue
+		}
+		if summary.Title != "" {
+			if item.Kind == "tvshow" {
+				item.ShowGuess = summary.Title
+			}
+			item.TitleGuess = summary.Title
+		}
+		if summary.Year != "" {
+			item.YearGuess = summary.Year
+		}
+		item.Original = summary.Original
+		item.Overview = summary.Plot
+		item.Runtime = summary.Runtime
+		item.Rating = summary.Rating
+		item.Genres = summary.Genres
+		item.Premiered = summary.Premiered
+		item.MatchedID = summary.TMDBID
+		item.IMDBID = summary.IMDBID
+		if summary.Title != "" {
+			item.MatchedName = summary.Title
+		}
+		return
+	}
+}
+
+func nfoCandidates(item Item) []string {
+	if item.Kind == "tvshow" {
+		showDir := showRoot(item.SourcePath, item.Path)
+		return []string{
+			filepath.Join(showDir, "tvshow.nfo"),
+			strings.TrimSuffix(item.Path, filepath.Ext(item.Path)) + ".nfo",
+		}
+	}
+	return []string{
+		filepath.Join(item.Dir, "movie.nfo"),
+		strings.TrimSuffix(item.Path, filepath.Ext(item.Path)) + ".nfo",
+	}
 }
 
 func ClassifyMediaFile(path string) string {

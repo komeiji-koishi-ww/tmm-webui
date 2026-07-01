@@ -63,6 +63,20 @@ type unique struct {
 	Value   string `xml:",chardata"`
 }
 
+type Summary struct {
+	Title        string
+	Original     string
+	Year         string
+	Plot         string
+	Runtime      int
+	Rating       float64
+	Genres       []string
+	Premiered    string
+	TMDBID       int
+	IMDBID       string
+	SeasonNumber int
+}
+
 func WriteMovie(dir string, movie tmdb.Movie) error {
 	value := movieNFO{
 		Title: movie.Title, Original: movie.Original, SortTitle: movie.Title,
@@ -125,6 +139,132 @@ func WriteTVSeason(path string, season tmdb.TVSeason, fanartPath string) error {
 		return err
 	}
 	return os.WriteFile(path, output, 0644)
+}
+
+func ReadSummary(path string) (Summary, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Summary{}, err
+	}
+	var probe struct {
+		XMLName xml.Name
+	}
+	if err := xml.Unmarshal(data, &probe); err != nil {
+		return Summary{}, err
+	}
+	switch probe.XMLName.Local {
+	case "movie":
+		var value movieNFO
+		if err := xml.Unmarshal(data, &value); err != nil {
+			return Summary{}, err
+		}
+		return summaryFromMovie(value), nil
+	case "tvshow":
+		var value tvShowNFO
+		if err := xml.Unmarshal(data, &value); err != nil {
+			return Summary{}, err
+		}
+		return summaryFromTVShow(value), nil
+	case "season":
+		var value tvSeasonNFO
+		if err := xml.Unmarshal(data, &value); err != nil {
+			return Summary{}, err
+		}
+		return summaryFromSeason(value), nil
+	default:
+		return Summary{}, nil
+	}
+}
+
+func summaryFromMovie(value movieNFO) Summary {
+	summary := Summary{
+		Title:     strings.TrimSpace(value.Title),
+		Original:  strings.TrimSpace(value.Original),
+		Year:      firstNonEmpty(strings.TrimSpace(value.Year), year(value.Premiered)),
+		Plot:      strings.TrimSpace(value.Plot),
+		Runtime:   value.Runtime,
+		Rating:    parseRating(value.Rating),
+		Genres:    compactStrings(value.Genres),
+		Premiered: strings.TrimSpace(value.Premiered),
+	}
+	applyUniqueIDs(&summary, value.UniqueIDs)
+	return summary
+}
+
+func summaryFromTVShow(value tvShowNFO) Summary {
+	summary := Summary{
+		Title:     strings.TrimSpace(value.Title),
+		Original:  strings.TrimSpace(value.Original),
+		Year:      firstNonEmpty(strings.TrimSpace(value.Year), year(value.Premiered)),
+		Plot:      strings.TrimSpace(value.Plot),
+		Rating:    parseRating(value.Rating),
+		Genres:    compactStrings(value.Genres),
+		Premiered: strings.TrimSpace(value.Premiered),
+	}
+	applyUniqueIDs(&summary, value.UniqueIDs)
+	return summary
+}
+
+func summaryFromSeason(value tvSeasonNFO) Summary {
+	summary := Summary{
+		Title:        strings.TrimSpace(value.Title),
+		Original:     strings.TrimSpace(value.SortTitle),
+		Year:         firstNonEmpty(strings.TrimSpace(value.Year), year(value.Premiered)),
+		Plot:         strings.TrimSpace(value.Plot),
+		Rating:       parseRating(value.Rating),
+		Premiered:    strings.TrimSpace(value.Premiered),
+		TMDBID:       value.TMDBID,
+		SeasonNumber: value.SeasonNumber,
+	}
+	applyUniqueIDs(&summary, value.UniqueIDs)
+	return summary
+}
+
+func applyUniqueIDs(summary *Summary, values []unique) {
+	for _, value := range values {
+		idType := strings.ToLower(strings.TrimSpace(value.Type))
+		idValue := strings.TrimSpace(value.Value)
+		switch idType {
+		case "tmdb":
+			if id, err := strconv.Atoi(idValue); err == nil {
+				summary.TMDBID = id
+			}
+		case "imdb":
+			summary.IMDBID = idValue
+		}
+	}
+}
+
+func parseRating(value string) float64 {
+	rating, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+	if err != nil {
+		return 0
+	}
+	return rating
+}
+
+func compactStrings(values []string) []string {
+	result := make([]string, 0, len(values))
+	seen := map[string]bool{}
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		key := strings.ToLower(value)
+		if value == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		result = append(result, value)
+	}
+	return result
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func seasonTitle(season tmdb.TVSeason) string {
