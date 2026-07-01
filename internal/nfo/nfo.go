@@ -26,6 +26,21 @@ type movieNFO struct {
 	Fanart    string   `xml:"fanart>thumb,omitempty"`
 }
 
+type tvShowNFO struct {
+	XMLName   xml.Name `xml:"tvshow"`
+	Title     string   `xml:"title"`
+	Original  string   `xml:"originaltitle,omitempty"`
+	SortTitle string   `xml:"sorttitle,omitempty"`
+	Year      string   `xml:"year,omitempty"`
+	Plot      string   `xml:"plot,omitempty"`
+	Rating    string   `xml:"rating,omitempty"`
+	UniqueIDs []unique `xml:"uniqueid"`
+	Genres    []string `xml:"genre,omitempty"`
+	Premiered string   `xml:"premiered,omitempty"`
+	Thumb     string   `xml:"thumb,omitempty"`
+	Fanart    string   `xml:"fanart>thumb,omitempty"`
+}
+
 type unique struct {
 	Type    string `xml:"type,attr"`
 	Default string `xml:"default,attr,omitempty"`
@@ -50,6 +65,23 @@ func WriteMovie(dir string, movie tmdb.Movie) error {
 	output = append([]byte(xml.Header), output...)
 	output = append(output, '\n')
 	return os.WriteFile(filepath.Join(dir, "movie.nfo"), output, 0644)
+}
+
+func WriteTVShow(dir string, show tmdb.TVShow) error {
+	value := tvShowNFO{
+		Title: show.Title, Original: show.Original, SortTitle: show.Title,
+		Year: year(show.FirstAirDate), Plot: show.Overview,
+		Rating: strconv.FormatFloat(show.VoteAverage, 'f', 1, 64),
+		Genres: show.Genres, Premiered: show.FirstAirDate,
+	}
+	value.UniqueIDs = append(value.UniqueIDs, unique{Type: "tmdb", Default: "true", Value: strconv.Itoa(show.ID)})
+	output, err := xml.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return err
+	}
+	output = append([]byte(xml.Header), output...)
+	output = append(output, '\n')
+	return os.WriteFile(filepath.Join(dir, "tvshow.nfo"), output, 0644)
 }
 
 func year(date string) string {

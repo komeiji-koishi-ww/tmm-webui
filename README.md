@@ -26,8 +26,17 @@ TMM 官方源码在 GitLab，整体是 Java/Maven 单体应用：
 
 ## 当前 MVP 功能
 
-- 添加电影媒体库路径。
-- 递归扫描视频文件。
+- 按 TMM 的 data source 思路添加媒体库。
+- 一个媒体库支持多个数据源路径。
+- 支持电影和电视剧两类媒体库。
+- WebUI 目录选择器，不需要手动记路径。
+- 递归扫描视频文件，并持久化扫描结果。
+- 扫描任务后台运行，切换媒体库不会中断当前扫描。
+- 扫描时按发现顺序实时加入列表，同时批量落盘，避免大库每个文件一次磁盘事务。
+- 重启后直接加载上次扫描结果，不要求每次打开都重新扫描。
+- TMM 风格跳过目录：`@eaDir`、`Plex Versions`、`CERTIFICATE`、回收站、隐藏目录等。
+- TMM 风格媒体文件分类：`VIDEO`、`TRAILER`、`SAMPLE`、`SUBTITLE`、`NFO`、`POSTER`、`FANART` 等。
+- 电视剧季集解析覆盖 `S01E01`、`1x02`、`102`、纯数字集、日期集和季目录推断。
 - 从文件名猜测标题和年份。
 - 使用 TMDb 搜索候选。
 - 写入 `movie.nfo`。
@@ -35,10 +44,18 @@ TMM 官方源码在 GitLab，整体是 Java/Maven 单体应用：
 - 生成重命名预览。
 - 执行文件重命名。
 - Go 单二进制提供 API 和 Vue 静态页面。
+- WebUI 采用 TMM 习惯的电影/电视剧模块切换、数据源列表、表格列表和详情操作区。
+
+当前持久化使用嵌入式 bbolt 数据库：
+
+- `tmmweb.db`：媒体库、扫描条目、任务记录。
+- buckets：`libraries`、`items`、`tasks`。
+
+这对应 TMM 的核心策略：先配置电影/电视剧 data source，执行 update data sources 扫描导入内部库，之后 UI 主要从本地库读取。TMM 源码里使用 H2 MVStore/MVMap + Jackson 序列化保存实体；本项目用 bbolt 的 bucket/kv 结构实现相近的嵌入式持久化模型。旧版 `libraries.json` / `items.json` 会在首次启动时自动迁移进 `tmmweb.db`。
 
 ## 后续需要补齐的 TMM 功能
 
-- 电视剧/季/集扫描和 `tvshow.nfo`、episode NFO。
+- 完整电视剧 `tvshow.nfo`、season NFO、episode NFO。
 - 多数据源：TVDb、IMDb、OMDb、fanart.tv、AniDB。
 - 本地 NFO 反向解析。
 - 本地图片命名规则兼容 Kodi/Emby/Jellyfin。
@@ -75,9 +92,10 @@ TMDB_API_KEY=your_key docker compose up -d --build
 
 - `GET /api/libraries`
 - `POST /api/libraries`
+- `GET /api/items?libraryId=...`
+- `GET /api/browse?path=...`
 - `POST /api/scan`
 - `GET /api/search?itemId=...`
 - `POST /api/scrape`
 - `POST /api/rename/preview`
 - `POST /api/rename/apply`
-

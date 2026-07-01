@@ -9,104 +9,220 @@
   </head>
   <body>
     <div id="app">
-      <aside class="sidebar">
-        <div class="brand">
-          <div class="mark">T</div>
-          <div>
-            <h1>TMM WebUI</h1>
-            <p>轻量媒体刮削与重命名</p>
-          </div>
-        </div>
-
-        <form class="panel compact" @submit.prevent="addLibrary">
-          <h2>媒体库</h2>
-          <label>
-            名称
-            <input v-model="newLibrary.name" placeholder="电影" />
-          </label>
-          <label>
-            路径
-            <input v-model="newLibrary.path" placeholder="/media/Movies" />
-          </label>
-          <label>
-            类型
-            <select v-model="newLibrary.type">
-              <option value="movie">电影</option>
-            </select>
-          </label>
-          <button type="submit">添加媒体库</button>
-        </form>
-
-        <div class="panel libraries">
-          <button
-            v-for="library in libraries"
-            :key="library.id"
-            :class="{ active: selectedLibrary && selectedLibrary.id === library.id }"
-            @click="selectLibrary(library)"
-          >
-            <span>{{ library.name }}</span>
-            <small>{{ library.path }}</small>
-          </button>
-        </div>
-      </aside>
-
       <main>
         <header class="topbar">
-          <div>
+          <div class="topbar-left">
+            <div class="brand top-brand">
+              <div class="mark">T</div>
+              <div>
+                <h1>TMM WebUI</h1>
+                <p>Media manager</p>
+              </div>
+            </div>
+            <nav class="module-tabs top-module-tabs">
+              <button type="button" :class="{ active: activeModule === 'movie' }" @click="switchModule('movie')">电影</button>
+              <button type="button" :class="{ active: activeModule === 'tvshow' }" @click="switchModule('tvshow')">电视剧</button>
+            </nav>
+            <label class="library-select">
+              媒体库
+              <select :disabled="!filteredLibraries.length" :value="selectedLibrary ? selectedLibrary.id : ''" @change="selectLibraryById($event.target.value)">
+                <option value="" disabled>{{ filteredLibraries.length ? '选择媒体库' : '未配置数据源' }}</option>
+                <option v-for="library in filteredLibraries" :key="library.id" :value="library.id">
+                  {{ library.name }}
+                </option>
+              </select>
+            </label>
+          </div>
+          <div class="topbar-status">
             <h2>{{ selectedLibrary ? selectedLibrary.name : '未选择媒体库' }}</h2>
-            <p>{{ status }}</p>
+            <p>{{ status }}<template v-if="selectedLibrary"> · {{ selectedTypeText }}</template></p>
           </div>
           <div class="actions">
-            <button :disabled="!selectedLibrary || busy" @click="scan">扫描</button>
-            <button :disabled="!selectedItem || busy" @click="searchSelected">搜索候选</button>
+            <button type="button" @click="openSettings">设置</button>
+            <button :disabled="!selectedLibrary || busy || (selectedTask && selectedTask.state === 'canceling')" @click="scan">
+              {{ selectedScanning ? '停止扫描' : selectedTask && selectedTask.state === 'canceling' ? '正在停止' : '更新数据源' }}
+            </button>
+            <button :disabled="!selectedItem || busy" @click="searchSelected">搜索/刮削</button>
           </div>
         </header>
 
-        <section class="workspace">
-          <div class="panel list-panel">
-            <div class="table-head">
-              <span>文件</span>
-              <span>识别名</span>
-              <span>年份</span>
-              <span>状态</span>
-            </div>
-            <button
-              class="row"
-              v-for="item in items"
-              :key="item.id"
-              :class="{ selected: selectedItem && selectedItem.id === item.id }"
-              @click="selectItem(item)"
-            >
-              <span class="file">{{ item.fileName }}</span>
-              <span>{{ item.titleGuess }}</span>
-              <span>{{ item.yearGuess || '-' }}</span>
-              <span class="badges">
-                <b v-if="item.hasNfo">NFO</b>
-                <b v-if="item.hasPoster">海报</b>
-                <b v-if="item.matchedName">{{ item.matchedName }}</b>
-              </span>
-            </button>
+        <section class="task-strip" v-if="allTasks.length">
+          <div class="task-list">
+            <article class="task-card" v-for="task in allTasks" :key="task.id" :class="task.state">
+              <div>
+                <strong>{{ task.libraryName }}</strong>
+                <span>{{ taskDescription(task) }}</span>
+              </div>
+              <em>{{ task.state }}</em>
+              <progress v-if="task.state === 'running'"></progress>
+              <p v-if="task.currentPath">{{ task.currentPath }}</p>
+            </article>
           </div>
+        </section>
 
-          <div class="panel detail-panel">
+        <section class="workbench">
+          <section class="browser-pane">
+            <div class="browser-toolbar">
+              <input v-model="query" placeholder="搜索标题、文件名、路径" />
+              <div class="filter-tabs">
+                <button :class="{ active: activeFilter === 'all' }" @click="setFilter('all')">全部</button>
+                <button :class="{ active: activeFilter === 'missingNfo' }" @click="setFilter('missingNfo')">缺 NFO</button>
+                <button :class="{ active: activeFilter === 'missingArtwork' }" @click="setFilter('missingArtwork')">缺图片</button>
+                <button :class="{ active: activeFilter === 'matched' }" @click="setFilter('matched')">已匹配</button>
+              </div>
+            </div>
+
+            <div class="media-table movie-table" v-if="activeModule === 'movie'">
+              <div class="table-head">
+                <span>标题</span>
+                <span>年份</span>
+                <span>文件名</span>
+                <span>路径</span>
+                <span>状态</span>
+              </div>
+              <button
+                class="table-row"
+                v-for="item in movieRows"
+                :key="item.id"
+                :class="{ selected: selectedItem && selectedItem.id === item.id }"
+                @click="selectItem(item)"
+                @contextmenu.prevent.stop="openContextMenu($event, 'movie', item)"
+              >
+                <span>{{ item.titleGuess }}</span>
+                <span>{{ item.yearGuess || '-' }}</span>
+                <span class="file">{{ item.fileName }}</span>
+                <span class="file">{{ item.dir }}</span>
+                <span>{{ itemStatusText(item) }}</span>
+              </button>
+              <div class="empty table-empty" v-if="!movieRows.length">没有匹配条目。</div>
+            </div>
+
+            <div class="media-table tv-tree" v-else>
+              <div class="table-head tv-head">
+                <span>剧集 / 季 / 集</span>
+                <span>集数</span>
+                <span>文件</span>
+                <span>状态</span>
+              </div>
+              <template v-for="show in tvTree" :key="show.key">
+                <button class="tree-row show-row" @click="toggleShow(show.key); selectTvGroup('show', show)" @contextmenu.prevent.stop="openContextMenu($event, 'show', show)">
+                  <span><b>{{ isShowExpanded(show.key) ? '▾' : '▸' }}</b>{{ show.title }}</span>
+                  <span>{{ show.episodes }}</span>
+                  <span>{{ show.seasons.length }} 季</span>
+                  <span>show</span>
+                </button>
+                <template v-if="isShowExpanded(show.key)">
+                  <template v-for="season in show.seasons" :key="season.key">
+                    <button class="tree-row season-row" @click="toggleSeason(season.key); selectTvGroup('season', season)" @contextmenu.prevent.stop="openContextMenu($event, 'season', { show, season })">
+                      <span><b>{{ isSeasonExpanded(season.key) ? '▾' : '▸' }}</b>{{ season.title }}</span>
+                      <span>{{ season.items.length }}</span>
+                      <span>{{ show.title }}</span>
+                      <span>season</span>
+                    </button>
+                    <button
+                      v-if="isSeasonExpanded(season.key)"
+                      class="tree-row episode-row"
+                      v-for="item in season.items"
+                      :key="item.id"
+                      :class="{ selected: selectedItem && selectedItem.id === item.id }"
+                      @click="selectItem(item)"
+                      @contextmenu.prevent.stop="openContextMenu($event, 'episode', item)"
+                    >
+                      <span>{{ itemSeasonText(item) }}</span>
+                      <span>{{ item.episode || '-' }}</span>
+                      <span class="file">{{ item.fileName }}</span>
+                      <span>{{ itemStatusText(item) }}</span>
+                    </button>
+                  </template>
+                </template>
+              </template>
+              <div class="empty table-empty" v-if="!tvTree.length">没有匹配条目。</div>
+            </div>
+
+            <footer class="browser-footer">
+              <span>{{ visibleItems.length }} / {{ items.length }} 条目</span>
+              <span>{{ selectedCountText }}</span>
+            </footer>
+          </section>
+
+          <aside class="detail-pane">
             <template v-if="selectedItem">
-              <h2>{{ selectedItem.titleGuess }}</h2>
-              <p class="path">{{ selectedItem.path }}</p>
+              <header>
+                <div>
+                  <h2>{{ detailTitle }}</h2>
+                  <p>{{ selectedItem.path }}</p>
+                </div>
+              </header>
 
-              <div class="section">
-                <h3>刮削候选</h3>
+              <nav class="detail-tabs">
+                <button :class="{ active: detailTab === 'info' }" @click="detailTab = 'info'">信息</button>
+                <button :class="{ active: detailTab === 'artwork' }" @click="detailTab = 'artwork'">图片</button>
+                <button :class="{ active: detailTab === 'media' }" @click="detailTab = 'media'">媒体</button>
+                <button :class="{ active: detailTab === 'scrape' }" @click="detailTab = 'scrape'">刮削</button>
+                <button :class="{ active: detailTab === 'rename' }" @click="detailTab = 'rename'">重命名</button>
+              </nav>
+
+              <section class="detail-section" v-if="detailTab === 'info'">
+                <dl>
+                  <dt>类型</dt>
+                  <dd>{{ selectedItem.kind === 'tvshow' ? '电视剧' : '电影' }}</dd>
+                  <dt>标题</dt>
+                  <dd>{{ selectedItem.titleGuess }}</dd>
+                  <dt>年份/集数</dt>
+                  <dd>{{ itemSeasonText(selectedItem) }}</dd>
+                  <dt>数据源</dt>
+                  <dd>{{ selectedItem.sourcePath || '-' }}</dd>
+                  <dt>匹配</dt>
+                  <dd>{{ selectedItem.matchedName || '未匹配' }}</dd>
+                </dl>
+              </section>
+
+              <section class="detail-section" v-if="detailTab === 'artwork'">
+                <div class="status-grid">
+                  <span :class="{ ok: selectedItem.hasPoster }">Poster</span>
+                  <span :class="{ ok: selectedItem.hasFanart }">Fanart</span>
+                  <span :class="{ ok: selectedItem.hasNfo }">NFO</span>
+                  <span :class="{ ok: selectedItem.hasSubtitle }">Subtitle</span>
+                </div>
+              </section>
+
+              <section class="detail-section" v-if="detailTab === 'media'">
+                <dl>
+                  <dt>媒体类型</dt>
+                  <dd>{{ selectedItem.mediaType || 'VIDEO' }}</dd>
+                  <dt>文件名</dt>
+                  <dd>{{ selectedItem.fileName }}</dd>
+                  <dt>目录</dt>
+                  <dd>{{ selectedItem.dir }}</dd>
+                </dl>
+              </section>
+
+              <section class="detail-section" v-if="detailTab === 'scrape'">
+                <div class="scrape-search">
+                  <label>
+                    搜索标题
+                    <input v-model="scrapeSearch.query" placeholder="输入 TMDb 搜索关键词" />
+                  </label>
+                  <label>
+                    年份
+                    <input v-model="scrapeSearch.year" placeholder="可选" />
+                  </label>
+                </div>
+                <div class="section-actions">
+                  <button :disabled="busy" @click="searchSelected">搜索候选</button>
+                </div>
+                <div class="empty" v-if="!candidates.length">没有候选时，改一下搜索标题或年份再搜索。</div>
                 <div class="candidate" v-for="candidate in candidates" :key="candidate.id">
                   <div>
                     <strong>{{ candidate.title }}</strong>
-                    <span>{{ candidate.releaseDate || '未知年份' }}</span>
+                    <span>{{ candidate.mediaType === 'tvshow' ? '电视剧' : '电影' }} · {{ candidate.releaseDate || '未知年份' }}</span>
                     <p>{{ candidate.overview || '无简介' }}</p>
                   </div>
                   <button @click="scrape(candidate)">写入</button>
                 </div>
-              </div>
+              </section>
 
-              <div class="section">
-                <h3>重命名</h3>
+              <section class="detail-section" v-if="detailTab === 'rename'">
                 <label>
                   模板
                   <input v-model="rename.pattern" />
@@ -128,12 +244,446 @@
                   <button :disabled="!renamePreview" @click="applyRename">执行重命名</button>
                 </div>
                 <pre v-if="renamePreview">{{ renamePreviewText }}</pre>
-              </div>
+              </section>
             </template>
-            <div v-else class="empty">选择一个媒体文件开始刮削或重命名。</div>
-          </div>
+            <div v-else class="empty detail-empty">选择一个条目。</div>
+          </aside>
         </section>
       </main>
+
+      <div class="modal-backdrop" v-if="browser.open">
+        <div class="modal">
+          <header>
+            <div>
+              <h2>选择数据源目录</h2>
+              <p>{{ browser.path }}</p>
+            </div>
+            <button type="button" @click="browser.open = false">关闭</button>
+          </header>
+          <div class="browser-actions">
+            <button type="button" @click="browse(browser.parent)">上一级</button>
+            <button type="button" @click="chooseBrowserPath">选择当前目录</button>
+          </div>
+          <div class="browser-list">
+            <button type="button" v-for="entry in browser.entries" :key="entry.path" @click="browse(entry.path)">
+              {{ entry.name }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        class="context-menu"
+        v-if="contextMenu.open"
+        :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+        @click.stop
+      >
+        <button type="button" @click="openChooserFromContext">{{ contextMenuTitle() }}</button>
+      </div>
+
+      <div class="modal-backdrop" v-if="chooser.open">
+        <div class="modal chooser-modal">
+          <header>
+            <div>
+              <h2>{{ chooserTitle() }}</h2>
+              <p>{{ chooser.path }}</p>
+            </div>
+            <button type="button" :disabled="chooser.loading || chooser.scraping" @click="closeChooser">关闭</button>
+          </header>
+
+          <section class="chooser-search">
+            <label>
+              刮削器
+              <select disabled>
+                <option>themoviedb.org</option>
+              </select>
+            </label>
+            <label>
+              搜索
+              <input v-model.trim="chooser.query" @keydown.enter.prevent="searchChooser" />
+            </label>
+            <label>
+              年份
+              <input v-model.trim="chooser.year" @keydown.enter.prevent="searchChooser" />
+            </label>
+            <label>
+              语言
+              <select disabled>
+                <option>zh-CN</option>
+              </select>
+            </label>
+            <button type="button" :disabled="chooser.loading || !chooser.query" @click="searchChooser">搜索</button>
+          </section>
+
+          <section class="chooser-body">
+            <div class="chooser-results">
+              <div class="chooser-table-head">
+                <span>搜索结果</span>
+                <span>年份</span>
+                <span>ID</span>
+              </div>
+              <button
+                type="button"
+                class="chooser-row"
+                v-for="candidate in chooser.candidates"
+                :key="candidate.id"
+                :class="{ selected: chooser.selected && chooser.selected.id === candidate.id }"
+                @click="selectCandidate(candidate)"
+                @dblclick="applyChooser"
+              >
+                <span>
+                  <strong>{{ candidate.title }}</strong>
+                  <small>{{ candidate.originalTitle || candidate.original || '-' }}</small>
+                </span>
+                <span>{{ candidateYear(candidate) || '-' }}</span>
+                <span>{{ candidate.id }}</span>
+              </button>
+              <div class="empty table-empty" v-if="!chooser.candidates.length && !chooser.loading">
+                没有候选。
+              </div>
+            </div>
+
+            <div class="chooser-detail">
+              <div class="chooser-progress" v-if="chooser.loading">
+                <progress></progress>
+                <span>正在读取候选信息</span>
+              </div>
+              <div class="chooser-error" v-if="chooser.error">{{ chooser.error }}</div>
+              <template v-if="chooser.detail">
+                <div class="poster-frame">
+                  <img v-if="chooser.detail.posterPath" :src="imageURL(chooser.detail.posterPath)" alt="" />
+                  <span v-else>无海报</span>
+                </div>
+                <section class="metadata-panel">
+                  <h3>{{ chooser.detail.title }}</h3>
+                  <dl>
+                    <dt>原始标题</dt>
+                    <dd>{{ chooser.detail.originalTitle || '-' }}</dd>
+                    <dt>{{ chooser.mediaType === 'tvshow' ? '首播日期' : '上映日期' }}</dt>
+                    <dd>{{ chooser.detail.releaseDate || chooser.detail.firstAirDate || '-' }}</dd>
+                    <dt>评分</dt>
+                    <dd>{{ chooser.detail.voteAverage || '-' }}</dd>
+                    <dt>类型</dt>
+                    <dd>{{ (chooser.detail.genres || []).join(' / ') || '-' }}</dd>
+                  </dl>
+                  <p>{{ chooser.detail.overview || '无简介' }}</p>
+                  <div class="cast-list">
+                    <strong>演员</strong>
+                    <span>{{ (chooser.detail.cast || []).join(' / ') || '-' }}</span>
+                  </div>
+                </section>
+              </template>
+              <div class="empty detail-empty" v-else-if="!chooser.loading">选择左侧候选查看完整信息。</div>
+            </div>
+          </section>
+
+          <section class="chooser-options">
+            <div>
+              <strong>{{ chooserScopeText() }}</strong>
+              <span>按 TMM 的候选选择流程：搜索候选、预览详情、确认后写入。</span>
+            </div>
+            <label class="check-row" v-if="chooser.mediaType === 'movie'">
+              <input type="checkbox" v-model="chooser.options.metadata" />
+              元数据 / NFO
+            </label>
+            <label class="check-row" v-if="chooser.mediaType === 'tvshow'">
+              <input type="checkbox" v-model="chooser.options.showMetadata" />
+              电视剧元数据 / tvshow.nfo
+            </label>
+            <label class="check-row" v-if="chooser.mediaType === 'tvshow'">
+              <input type="checkbox" v-model="chooser.options.episodeMetadata" />
+              更新{{ chooser.scope === 'season' ? '本季' : chooser.scope === 'show' ? '整剧' : '本集' }}匹配状态
+            </label>
+            <label class="check-row">
+              <input type="checkbox" v-model="chooser.options.artwork" />
+              海报 / 背景图
+            </label>
+            <label class="check-row">
+              <input type="checkbox" v-model="chooser.options.overwrite" />
+              覆盖已有文件
+            </label>
+          </section>
+
+          <footer class="settings-footer">
+            <button type="button" :disabled="chooser.scraping" @click="closeChooser">取消</button>
+            <button type="button" :disabled="chooser.scraping || !chooser.selected" @click="applyChooser">
+              {{ chooser.scraping ? '写入中' : '确定' }}
+            </button>
+          </footer>
+        </div>
+      </div>
+
+      <div class="modal-backdrop" v-if="settingsOpen">
+        <form class="modal settings-modal" @submit.prevent="closeSettings">
+          <header>
+            <div>
+              <h2>设置</h2>
+              <p>{{ tmdbStatusText }} · {{ proxyStatusText }}</p>
+            </div>
+            <button type="button" :disabled="scraperSettings.saving" @click="closeSettings">关闭</button>
+          </header>
+
+          <div class="settings-shell">
+            <aside class="settings-tree-pane">
+              <input v-model.trim="settingsFilter" class="settings-filter" placeholder="过滤设置" />
+              <nav class="settings-tree">
+                <section v-for="section in filteredSettingsSections" :key="section.id">
+                  <button type="button" class="settings-tree-parent" @click="selectSettingsSection(section.children[0] ? section.children[0].id : section.id)">
+                    <span>▾</span>
+                    <strong>{{ section.title }}</strong>
+                  </button>
+                  <template v-for="child in section.children" :key="child.id">
+                    <button
+                      type="button"
+                      class="settings-tree-child"
+                      :class="{ active: settingsActiveSection === child.id }"
+                      @click="selectSettingsSection(child.id)"
+                    >
+                      {{ child.children && child.children.length ? '▾ ' : '' }}{{ child.title }}
+                    </button>
+                    <button
+                      type="button"
+                      class="settings-tree-grandchild"
+                      v-for="grandchild in child.children || []"
+                      :key="grandchild.id"
+                      :class="{ active: settingsActiveSection === grandchild.id }"
+                      @click="selectSettingsSection(grandchild.id)"
+                    >
+                      {{ grandchild.title }}
+                    </button>
+                  </template>
+                </section>
+              </nav>
+            </aside>
+
+            <main class="settings-page">
+              <section class="settings-panel" v-if="activeSettingsPage === 'general-system'">
+                <div class="settings-panel-title">
+                  <h3>系统 / 代理</h3>
+                  <span>{{ proxyStatusText }}</span>
+                </div>
+
+                <fieldset class="settings-fieldset">
+                  <legend>HTTP 代理</legend>
+                  <label class="check-row settings-check">
+                    <input v-model="scraperSettings.proxyEnabled" type="checkbox" />
+                    启用 HTTP 代理
+                  </label>
+                  <div class="settings-form-row">
+                    <label>主机</label>
+                    <input v-model.trim="scraperSettings.proxyHost" placeholder="127.0.0.1" />
+                  </div>
+                  <div class="settings-form-row">
+                    <label>端口</label>
+                    <input v-model.number="scraperSettings.proxyPort" type="number" min="1" max="65535" placeholder="7890" />
+                  </div>
+                  <div class="settings-form-row">
+                    <label>用户名</label>
+                    <input v-model.trim="scraperSettings.proxyUsername" autocomplete="off" />
+                  </div>
+                  <div class="settings-form-row">
+                    <label>密码</label>
+                    <input v-model="scraperSettings.proxyPassword" type="password" :placeholder="scraperSettings.proxyPasswordConfigured ? '已保存，输入新密码可替换' : ''" autocomplete="off" />
+                  </div>
+                  <label class="check-row settings-check">
+                    <input v-model="scraperSettings.clearProxyPassword" type="checkbox" />
+                    清除已保存的代理密码
+                  </label>
+                </fieldset>
+              </section>
+
+              <section class="settings-panel" v-if="activeSettingsPage === 'general-services'">
+                <div class="settings-panel-title">
+                  <h3>外部服务</h3>
+                  <span>{{ tmdbStatusText }}</span>
+                </div>
+
+                <fieldset class="settings-fieldset">
+                  <legend>TMDb</legend>
+                  <div class="settings-form-row">
+                    <label>服务</label>
+                    <select disabled>
+                      <option>themoviedb.org</option>
+                    </select>
+                  </div>
+                  <div class="settings-form-row">
+                    <label>TMDb API Key</label>
+                    <input v-model.trim="scraperSettings.tmdbApiKey" type="password" placeholder="输入新的 API key" autocomplete="off" />
+                  </div>
+                  <div class="settings-form-row">
+                    <span></span>
+                    <button
+                      type="button"
+                      :disabled="scraperSettings.saving || scraperSettings.tmdbKeySource === 'environment' || !scraperSettings.tmdbConfigured"
+                      @click="clearTmdbKey"
+                    >
+                      清除 TMDb Key
+                    </button>
+                  </div>
+                  <p class="setting-note" v-if="scraperSettings.tmdbKeySource === 'environment'">
+                    当前使用启动环境变量，页面设置不会覆盖它。
+                  </p>
+                </fieldset>
+              </section>
+
+              <section class="settings-panel" v-if="activeSettingsPage === 'movie-source' || activeSettingsPage === 'tvshow-source'">
+                <div class="settings-panel-title">
+                  <h3>{{ activeSettingsPage === 'movie-source' ? '电影数据源' : '电视剧数据源' }}</h3>
+                  <span>{{ librariesByType(activeSettingsPage === 'movie-source' ? 'movie' : 'tvshow').length }} 个路径</span>
+                </div>
+
+                <fieldset class="settings-fieldset">
+                  <legend>数据源</legend>
+                  <div class="settings-source-list">
+                    <article class="settings-source-row" v-for="library in librariesByType(activeSettingsPage === 'movie-source' ? 'movie' : 'tvshow')" :key="library.id">
+                      <div>
+                        <strong>{{ library.name }}</strong>
+                        <span>{{ (library.paths || [library.path]).join(' / ') }}</span>
+                      </div>
+                      <button type="button" @click="deleteLibrary(library)">移除</button>
+                    </article>
+                    <div class="empty" v-if="!librariesByType(activeSettingsPage === 'movie-source' ? 'movie' : 'tvshow').length">还没有配置数据源。</div>
+                  </div>
+                  <div class="settings-form-row">
+                    <label>名称</label>
+                    <input v-model="newLibrary.name" placeholder="媒体库名称" />
+                  </div>
+                  <div class="settings-form-row">
+                    <label>路径</label>
+                    <div class="path-picker">
+                      <input v-model="pendingPath" placeholder="/Volumes/..." />
+                      <button type="button" @click="browseDatasource(activeSettingsPage === 'movie-source' ? 'movie' : 'tvshow')">浏览</button>
+                      <button type="button" @click="addPendingPath">添加</button>
+                    </div>
+                  </div>
+                  <div class="paths settings-paths" v-if="newLibrary.paths.length">
+                    <button type="button" v-for="path in newLibrary.paths" :key="path" @click="removePath(path)">
+                      <span>{{ path }}</span>
+                      <b>移除</b>
+                    </button>
+                  </div>
+                  <div class="settings-form-row">
+                    <span></span>
+                    <button type="button" @click="addDatasource(activeSettingsPage === 'movie-source' ? 'movie' : 'tvshow')">添加数据源</button>
+                  </div>
+                </fieldset>
+              </section>
+
+              <section class="settings-panel" v-if="activeSettingsPage === 'movie-scraper' || activeSettingsPage === 'tvshow-scraper'">
+                <div class="settings-panel-title">
+                  <h3>{{ activeSettingsPage === 'movie-scraper' ? '电影元数据刮削' : '电视剧元数据刮削' }}</h3>
+                  <span>themoviedb.org</span>
+                </div>
+                <fieldset class="settings-fieldset">
+                  <legend>刮削器</legend>
+                  <div class="settings-form-row">
+                    <label>默认刮削器</label>
+                    <select disabled>
+                      <option>themoviedb.org</option>
+                    </select>
+                  </div>
+                  <div class="settings-check-grid">
+                    <label class="check-row"><input type="checkbox" checked disabled /> 标题</label>
+                    <label class="check-row"><input type="checkbox" checked disabled /> 简介</label>
+                    <label class="check-row"><input type="checkbox" checked disabled /> 演员</label>
+                    <label class="check-row"><input type="checkbox" checked disabled /> 类型</label>
+                    <label class="check-row"><input type="checkbox" checked disabled /> 评分</label>
+                    <label class="check-row"><input type="checkbox" checked disabled /> TMDb ID</label>
+                  </div>
+                </fieldset>
+              </section>
+
+              <section class="settings-panel" v-if="activeSettingsPage === 'movie-artwork-naming' || activeSettingsPage === 'tvshow-artwork-naming' || activeSettingsPage === 'movie-artwork' || activeSettingsPage === 'tvshow-artwork'">
+                <div class="settings-panel-title">
+                  <h3>{{ activeSettingsPage.startsWith('movie') ? '电影图片' : '电视剧图片' }}</h3>
+                  <span>海报 / 背景图</span>
+                </div>
+                <fieldset class="settings-fieldset" v-if="activeSettingsPage.startsWith('movie')">
+                  <legend>图片命名</legend>
+                  <div class="settings-form-row">
+                    <label>海报</label>
+                    <input v-model.trim="scraperSettings.moviePosterName" />
+                  </div>
+                  <div class="settings-form-row">
+                    <label>背景图</label>
+                    <input v-model.trim="scraperSettings.movieFanartName" />
+                  </div>
+                </fieldset>
+                <fieldset class="settings-fieldset" v-else>
+                  <legend>图片命名</legend>
+                  <div class="settings-form-row">
+                    <label>剧集海报</label>
+                    <input v-model.trim="scraperSettings.tvShowPosterName" />
+                  </div>
+                  <div class="settings-form-row">
+                    <label>剧集背景图</label>
+                    <input v-model.trim="scraperSettings.tvShowFanartName" />
+                  </div>
+                </fieldset>
+              </section>
+
+              <section class="settings-panel" v-if="activeSettingsPage === 'movie-renamer'">
+                <div class="settings-panel-title">
+                  <h3>电影重命名</h3>
+                  <span>文件夹 / 文件名</span>
+                </div>
+                <fieldset class="settings-fieldset">
+                  <legend>模板</legend>
+                  <div class="settings-form-row">
+                    <label>文件夹</label>
+                    <input v-model.trim="scraperSettings.movieRenamerPathname" />
+                  </div>
+                  <div class="settings-form-row">
+                    <label>文件名</label>
+                    <input v-model.trim="scraperSettings.movieRenamerFilename" />
+                  </div>
+                  <pre class="settings-example">{{ scraperSettings.movieRenamerPathname }}/{{ scraperSettings.movieRenamerFilename }}.mkv</pre>
+                </fieldset>
+              </section>
+
+              <section class="settings-panel" v-if="activeSettingsPage === 'tvshow-renamer'">
+                <div class="settings-panel-title">
+                  <h3>电视剧重命名</h3>
+                  <span>剧集 / 季 / 集文件</span>
+                </div>
+                <fieldset class="settings-fieldset">
+                  <legend>模板</legend>
+                  <div class="settings-form-row">
+                    <label>剧集文件夹</label>
+                    <input v-model.trim="scraperSettings.tvShowRenamerShowFolder" />
+                  </div>
+                  <div class="settings-form-row">
+                    <label>季文件夹</label>
+                    <input v-model.trim="scraperSettings.tvShowRenamerSeason" />
+                  </div>
+                  <div class="settings-form-row">
+                    <label>集文件名</label>
+                    <input v-model.trim="scraperSettings.tvShowRenamerFilename" />
+                  </div>
+                  <pre class="settings-example">{{ scraperSettings.tvShowRenamerShowFolder }}/{{ scraperSettings.tvShowRenamerSeason }}/{{ scraperSettings.tvShowRenamerFilename }}.mkv</pre>
+                </fieldset>
+              </section>
+
+              <section class="settings-panel" v-if="['movie-ui','tvshow-ui','movie-nfo','tvshow-nfo','movie-scraper-options','tvshow-scraper-options','movie-artwork-options','tvshow-artwork-options'].includes(activeSettingsPage)">
+                <div class="settings-panel-title">
+                  <h3>{{ activeSettingsTitle }}</h3>
+                  <span>按 TMM 结构预留</span>
+                </div>
+                <fieldset class="settings-fieldset">
+                  <legend>{{ activeSettingsTitle }}</legend>
+                  <p class="setting-note">这个页面已经按 TMM 设置树放置，具体选项会随着对应功能落地继续补齐。</p>
+                </fieldset>
+              </section>
+            </main>
+          </div>
+
+          <footer class="settings-footer">
+            <button type="submit" :disabled="scraperSettings.saving">
+              {{ scraperSettings.saving ? '保存中' : '关闭' }}
+            </button>
+          </footer>
+        </form>
+      </div>
     </div>
     <script src="/app.js"></script>
   </body>
