@@ -13,6 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -622,15 +624,24 @@ func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleItems(w http.ResponseWriter, r *http.Request) {
 	libraryID := r.URL.Query().Get("libraryId")
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = io.WriteString(w, `{"items":[`)
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	items := make([]media.Item, 0, len(s.items))
+	count := 0
 	for _, item := range s.items {
 		if libraryID == "" || item.LibraryID == libraryID {
-			items = append(items, item)
+			if count > 0 {
+				_, _ = io.WriteString(w, ",")
+			}
+			data, err := json.Marshal(item)
+			if err == nil {
+				_, _ = w.Write(data)
+				count++
+			}
 		}
 	}
-	writeJSON(w, map[string]interface{}{"items": items, "count": len(items)})
+	s.mu.Unlock()
+	_, _ = fmt.Fprintf(w, `],"count":%d}`+"\n", count)
 }
 
 func (s *Server) handleArtwork(w http.ResponseWriter, r *http.Request) {
@@ -1572,6 +1583,7 @@ func artworkPath(item media.Item, artType string, scope string) string {
 			if artType == "poster" && item.Season > 0 {
 				dirs = append(dirs, seasonDir, showDir)
 				names = append(names, seasonPosterNames(item.Season)...)
+				names = append(names, defaultTVShowPosterNames()...)
 			} else if artType == "fanart" && item.Season > 0 {
 				dirs = append(dirs, seasonDir, showDir)
 				names = append(names, seasonFanartNames(item.Season)...)
@@ -1581,6 +1593,7 @@ func artworkPath(item media.Item, artType string, scope string) string {
 			if artType == "poster" && item.Season > 0 {
 				dirs = append(dirs, seasonDir, showDir)
 				names = append(names, seasonPosterNames(item.Season)...)
+				names = append(names, defaultTVShowPosterNames()...)
 			} else if artType == "fanart" {
 				dirs = append(dirs, item.Dir, seasonDir, showDir)
 				names = append(names, episodeThumbNames(item)...)
@@ -1758,6 +1771,8 @@ func (s *Server) runningScanTaskLocked(libraryID string) *Task {
 }
 
 func (s *Server) runScanTask(taskID string, library media.Library) {
+	defer releaseScanMemory()
+
 	var pending []media.Item
 	var persistErr error
 	lastFlush := time.Now()
@@ -1792,7 +1807,7 @@ func (s *Server) runScanTask(taskID string, library media.Library) {
 		}
 	}
 	s.mu.Unlock()
-	items, err := media.ScanLibraryWithOptions(library, media.ScanOptions{
+	currentIDs, err := media.ScanLibraryIDsWithOptions(library, media.ScanOptions{
 		Existing:       existing,
 		ProbeMediaInfo: scanMediaInfoEnabled(),
 	}, func(progress media.ScanProgress) {
@@ -1824,6 +1839,7 @@ func (s *Server) runScanTask(taskID string, library media.Library) {
 	if err == nil {
 		err = flushPending(true)
 	}
+	existing = nil
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	task := s.tasks[taskID]
@@ -1844,34 +1860,32 @@ func (s *Server) runScanTask(taskID string, library media.Library) {
 		_ = s.store.SaveTask(task.toRecord())
 		return
 	}
-	for i, item := range items {
-		if existing, ok := s.items[item.ID]; ok {
-			item = media.MergeScannedItem(existing, item)
-			items[i] = item
-		}
-		s.items[item.ID] = item
-	}
-	if err := s.store.PruneLibraryItems(library.ID, items); err != nil {
+	if err := s.store.PruneLibraryItemIDs(library.ID, currentIDs); err != nil {
 		task.State = "failed"
 		task.Error = err.Error()
 		_ = s.store.SaveTask(task.toRecord())
 		return
 	}
-	currentIDs := make(map[string]struct{}, len(items))
-	for _, item := range items {
-		currentIDs[item.ID] = struct{}{}
+	currentIDSet := make(map[string]struct{}, len(currentIDs))
+	for _, id := range currentIDs {
+		currentIDSet[id] = struct{}{}
 	}
 	for id, item := range s.items {
 		if item.LibraryID == library.ID {
-			if _, ok := currentIDs[id]; !ok {
+			if _, ok := currentIDSet[id]; !ok {
 				delete(s.items, id)
 			}
 		}
 	}
 	task.State = "completed"
-	task.ResultCount = len(items)
-	task.FoundItems = len(items)
+	task.ResultCount = len(currentIDs)
+	task.FoundItems = len(currentIDs)
 	_ = s.store.SaveTask(task.toRecord())
+}
+
+func releaseScanMemory() {
+	runtime.GC()
+	debug.FreeOSMemory()
 }
 
 func scanMediaInfoEnabled() bool {
@@ -1978,6 +1992,7 @@ func itemChanged(a media.Item, b media.Item) bool {
 		!reflect.DeepEqual(a.SubtitleStreams, b.SubtitleStreams) ||
 		a.MediaInfoScanned != b.MediaInfoScanned ||
 		strings.Join(a.Genres, "\x00") != strings.Join(b.Genres, "\x00") ||
+		strings.Join(a.Actors, "\x00") != strings.Join(b.Actors, "\x00") ||
 		a.Premiered != b.Premiered ||
 		a.IMDBID != b.IMDBID ||
 		a.MatchedID != b.MatchedID ||

@@ -10,6 +10,7 @@ COPY --from=build /out/tmmweb /usr/local/bin/tmmweb
 ENV TMMWEB_ADDR=:8080
 ENV TMMWEB_DATA=/config
 ENV TMMWEB_SCAN_MEDIAINFO=1
+ENV TMMWEB_MEDIAINFO_WORKERS=2
 VOLUME ["/config", "/media"]
 EXPOSE 8080
 USER app

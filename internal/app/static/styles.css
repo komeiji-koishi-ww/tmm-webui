@@ -666,6 +666,7 @@ main {
 }
 
 .summary-overview,
+.summary-actors,
 .summary-folder {
   grid-column: 1 / -1;
 }
@@ -695,6 +696,26 @@ main {
   border-radius: 5px;
   background: #f8fafc;
   font-size: 12px;
+}
+
+.summary-actors {
+  display: grid;
+  gap: 5px;
+  padding: 9px 10px;
+  border: 1px solid #d9e1eb;
+  border-radius: 5px;
+  background: #f8fafc;
+  font-size: 12px;
+}
+
+.summary-actors strong {
+  color: #526173;
+  font-weight: 650;
+}
+
+.summary-actors span {
+  color: #1e2732;
+  line-height: 1.45;
 }
 
 .summary-folder strong {

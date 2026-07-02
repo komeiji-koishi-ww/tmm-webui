@@ -225,6 +225,7 @@ type Summary struct {
 	Runtime         int
 	Rating          float64
 	Genres          []string
+	Actors          []string
 	Premiered       string
 	TMDBID          int
 	IMDBID          string
@@ -519,13 +520,12 @@ func summaryFromMovie(value movieNFO) Summary {
 		Runtime:   value.Runtime,
 		Rating:    ratingValue(value.Rating, value.Ratings.Items),
 		Genres:    compactStrings(value.Genres),
+		Actors:    actorNames(value.Actors),
 		Premiered: strings.TrimSpace(value.Premiered),
 		TMDBID:    value.TMDBID,
 	}
 	applyUniqueIDs(&summary, value.UniqueIDs)
-	if summary.IMDBID == "" && strings.HasPrefix(strings.TrimSpace(value.ID), "tt") {
-		summary.IMDBID = strings.TrimSpace(value.ID)
-	}
+	applyLegacyID(&summary, value.ID)
 	applyFileInfoSummary(&summary, value.FileInfo)
 	return summary
 }
@@ -542,9 +542,7 @@ func summaryFromTVShow(value tvShowNFO) Summary {
 		TMDBID:    value.TMDBID,
 	}
 	applyUniqueIDs(&summary, value.UniqueIDs)
-	if summary.IMDBID == "" && strings.HasPrefix(strings.TrimSpace(value.ID), "tt") {
-		summary.IMDBID = strings.TrimSpace(value.ID)
-	}
+	applyLegacyID(&summary, value.ID)
 	return summary
 }
 
@@ -570,11 +568,13 @@ func summaryFromEpisode(value tvEpisodeNFO) Summary {
 		Plot:      strings.TrimSpace(value.Plot),
 		Runtime:   value.Runtime,
 		Rating:    ratingValue(value.Rating, value.Ratings.Items),
+		Actors:    actorNames(value.Actors),
 		Premiered: firstNonEmpty(strings.TrimSpace(value.Premiered), strings.TrimSpace(value.Aired)),
 		TMDBID:    value.TMDBID,
 	}
 	summary.Year = year(summary.Premiered)
 	applyUniqueIDs(&summary, value.UniqueIDs)
+	applyLegacyID(&summary, value.ID)
 	applyFileInfoSummary(&summary, value.FileInfo)
 	return summary
 }
@@ -612,6 +612,45 @@ func applyUniqueIDs(summary *Summary, values []unique) {
 			summary.IMDBID = idValue
 		}
 	}
+}
+
+func applyLegacyID(summary *Summary, value string) {
+	id := strings.TrimSpace(value)
+	if id == "" {
+		return
+	}
+	if strings.HasPrefix(id, "tt") {
+		if summary.IMDBID == "" {
+			summary.IMDBID = id
+		}
+		return
+	}
+	if summary.TMDBID == 0 {
+		if parsed, err := strconv.Atoi(id); err == nil {
+			summary.TMDBID = parsed
+		}
+	}
+}
+
+func actorNames(values []actorNFO) []string {
+	names := make([]string, 0, len(values))
+	seen := map[string]struct{}{}
+	for _, value := range values {
+		name := strings.TrimSpace(value.Name)
+		if name == "" {
+			continue
+		}
+		key := strings.ToLower(name)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		names = append(names, name)
+		if len(names) >= 12 {
+			break
+		}
+	}
+	return names
 }
 
 func parseRating(value string) float64 {

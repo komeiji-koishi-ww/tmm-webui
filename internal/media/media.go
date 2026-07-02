@@ -108,6 +108,7 @@ type Item struct {
 	Rating           float64          `json:"rating,omitempty"`
 	ShowRating       float64          `json:"showRating,omitempty"`
 	Genres           []string         `json:"genres,omitempty"`
+	Actors           []string         `json:"actors,omitempty"`
 	Premiered        string           `json:"premiered,omitempty"`
 	DateAdded        string           `json:"dateAdded,omitempty"`
 	ModTimeUnix      int64            `json:"modTimeUnix,omitempty"`
@@ -250,8 +251,31 @@ func ScanLibraryWithCancel(library Library, progress func(ScanProgress), shouldC
 
 func ScanLibraryWithOptions(library Library, options ScanOptions, progress func(ScanProgress), shouldCancel func() bool) ([]Item, error) {
 	var items []Item
+	err := scanLibraryWithOptions(library, options, progress, shouldCancel, func(item Item) {
+		items = append(items, item)
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].Path < items[j].Path })
+	return items, nil
+}
+
+func ScanLibraryIDsWithOptions(library Library, options ScanOptions, progress func(ScanProgress), shouldCancel func() bool) ([]string, error) {
+	var ids []string
+	err := scanLibraryWithOptions(library, options, progress, shouldCancel, func(item Item) {
+		ids = append(ids, item.ID)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+func scanLibraryWithOptions(library Library, options ScanOptions, progress func(ScanProgress), shouldCancel func() bool, collect func(Item)) error {
 	visited := 0
 	found := 0
+	collected := 0
 	if options.Workers <= 0 {
 		options.Workers = defaultScanWorkers()
 	}
@@ -284,9 +308,10 @@ func ScanLibraryWithOptions(library Library, options ScanOptions, progress func(
 					if !ok {
 						return
 					}
-					items = append(items, item)
+					collect(item)
+					collected++
 					if progress != nil {
-						progress(ScanProgress{SourcePath: root, CurrentPath: item.Path, VisitedFiles: visited, FoundItems: len(items), Item: &item})
+						progress(ScanProgress{SourcePath: root, CurrentPath: item.Path, VisitedFiles: visited, FoundItems: collected, Item: &item})
 					}
 				default:
 					return
@@ -316,7 +341,8 @@ func ScanLibraryWithOptions(library Library, options ScanOptions, progress func(
 			found++
 			id := stableID(path)
 			if existing, ok := options.Existing[id]; ok && itemUnchanged(existing, path, info, options.ProbeMediaInfo) {
-				items = append(items, existing)
+				collect(existing)
+				collected++
 				if progress != nil && found%25 == 0 {
 					progress(ScanProgress{SourcePath: root, CurrentPath: path, VisitedFiles: visited, FoundItems: found})
 				}
@@ -328,20 +354,20 @@ func ScanLibraryWithOptions(library Library, options ScanOptions, progress func(
 		})
 		close(jobs)
 		for item := range results {
-			items = append(items, item)
+			collect(item)
+			collected++
 			if progress != nil {
-				progress(ScanProgress{SourcePath: root, CurrentPath: item.Path, VisitedFiles: visited, FoundItems: len(items), Item: &item})
+				progress(ScanProgress{SourcePath: root, CurrentPath: item.Path, VisitedFiles: visited, FoundItems: collected, Item: &item})
 			}
 		}
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if progress != nil {
 			progress(ScanProgress{SourcePath: root, CurrentPath: root, VisitedFiles: visited, FoundItems: found})
 		}
 	}
-	sort.Slice(items, func(i, j int) bool { return items[i].Path < items[j].Path })
-	return items, nil
+	return nil
 }
 
 func defaultScanWorkers() int {
@@ -483,10 +509,17 @@ func itemUnchanged(existing Item, path string, info os.FileInfo, requireMediaInf
 	if existing.NFOModTimeUnix != firstNFOModTime(existing) {
 		return false
 	}
+	if existing.HasNFO && nfoSummaryMissing(existing) {
+		return false
+	}
 	if requireMediaInfo && !existing.MediaInfoScanned {
 		return false
 	}
 	return true
+}
+
+func nfoSummaryMissing(item Item) bool {
+	return item.MatchedName == "" || item.Overview == "" || item.MatchedID == 0 && item.IMDBID == ""
 }
 
 func fileModTimeUnix(info os.FileInfo) int64 {
@@ -527,6 +560,9 @@ func MergeScannedItem(existing Item, scanned Item) Item {
 	}
 	if len(scanned.Genres) == 0 && len(existing.Genres) > 0 {
 		scanned.Genres = existing.Genres
+	}
+	if len(scanned.Actors) == 0 && len(existing.Actors) > 0 {
+		scanned.Actors = existing.Actors
 	}
 	if scanned.Premiered == "" && existing.Premiered != "" {
 		scanned.Premiered = existing.Premiered
@@ -585,6 +621,8 @@ func ProbeMediaInfo(path string, info os.FileInfo) MediaInfoProbe {
 	if ffprobe == "" {
 		return probe
 	}
+	release := acquireFFProbeSlot()
+	defer release()
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
 	output, err := exec.CommandContext(ctx, ffprobe,
@@ -711,6 +749,33 @@ func findFFProbe() string {
 		}
 	})
 	return ffprobePath
+}
+
+var (
+	ffprobeSlotsOnce sync.Once
+	ffprobeSlots     chan struct{}
+)
+
+func acquireFFProbeSlot() func() {
+	ffprobeSlotsOnce.Do(func() {
+		workers := 2
+		if raw := strings.TrimSpace(os.Getenv("TMMWEB_MEDIAINFO_WORKERS")); raw != "" {
+			if parsed, err := strconv.Atoi(raw); err == nil {
+				workers = parsed
+			}
+		}
+		if workers < 1 {
+			workers = 1
+		}
+		if workers > 8 {
+			workers = 8
+		}
+		ffprobeSlots = make(chan struct{}, workers)
+	})
+	ffprobeSlots <- struct{}{}
+	return func() {
+		<-ffprobeSlots
+	}
 }
 
 func videoFormatFromHeight(height int) string {
@@ -930,6 +995,7 @@ func applyNFOSummary(item *Item) {
 			item.Rating = summary.Rating
 		}
 		item.Genres = summary.Genres
+		item.Actors = summary.Actors
 		item.Premiered = summary.Premiered
 		item.MatchedID = summary.TMDBID
 		item.IMDBID = summary.IMDBID

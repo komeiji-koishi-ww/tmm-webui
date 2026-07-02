@@ -6,6 +6,8 @@ services:
       - "8080:8080"
     environment:
       TMMWEB_DATA: /config
+      TMMWEB_SCAN_MEDIAINFO: "1"
+      TMMWEB_MEDIAINFO_WORKERS: "2"
       TMDB_API_KEY: "${TMDB_API_KEY:-}"
     volumes:
       - ./data:/config

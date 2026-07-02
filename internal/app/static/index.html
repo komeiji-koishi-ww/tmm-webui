@@ -234,6 +234,10 @@
                   </template>
                 </dl>
                 <p class="summary-overview">{{ selectedSummary.overview || '暂无简介。' }}</p>
+                <div class="summary-actors" v-if="selectedSummary.actors && selectedSummary.actors.length">
+                  <strong>演员</strong>
+                  <span>{{ selectedSummary.actors.slice(0, 8).join(' / ') }}</span>
+                </div>
                 <div class="summary-fanart">
                   <img v-if="selectedSummary.fanart" :src="selectedSummary.fanart" alt="" @error="hideBrokenImage" />
                   <span v-else>Fanart</span>

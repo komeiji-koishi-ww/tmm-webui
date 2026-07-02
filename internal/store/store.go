@@ -137,9 +137,17 @@ func (s *Store) DeleteItem(id string) error {
 }
 
 func (s *Store) PruneLibraryItems(libraryID string, items []media.Item) error {
-	current := make(map[string]struct{}, len(items))
+	currentIDs := make([]string, 0, len(items))
 	for _, item := range items {
-		current[item.ID] = struct{}{}
+		currentIDs = append(currentIDs, item.ID)
+	}
+	return s.PruneLibraryItemIDs(libraryID, currentIDs)
+}
+
+func (s *Store) PruneLibraryItemIDs(libraryID string, currentIDs []string) error {
+	current := make(map[string]struct{}, len(currentIDs))
+	for _, id := range currentIDs {
+		current[id] = struct{}{}
 	}
 	return s.db.Update(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket(itemsBucket)

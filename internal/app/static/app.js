@@ -1251,6 +1251,7 @@ createApp({
         showMediaFields: Object.prototype.hasOwnProperty.call(overrides, "showMediaFields") ? overrides.showMediaFields : true,
         showRatingField: Object.prototype.hasOwnProperty.call(overrides, "showRatingField") ? overrides.showRatingField : true,
         genres: fallback.genres || [],
+        actors: fallback.actors || [],
         overview: fallback.overview || "",
         dateAdded: fallback.dateAdded || "",
         matchedName: fallback.matchedName || "",
