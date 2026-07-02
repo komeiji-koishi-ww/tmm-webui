@@ -4,8 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>TMM WebUI</title>
-    <script src="/vue.global.prod.js"></script>
-    <link rel="stylesheet" href="/styles.css" />
+    <script src="/vue.global.prod.js?v=dev"></script>
+    <link rel="stylesheet" href="/styles.css?v=dev" />
   </head>
   <body>
     <div id="app">
@@ -113,21 +113,23 @@
               </div>
             </div>
 
-            <div class="media-table movie-table" v-if="activeModule === 'movie'">
-              <div class="table-head">
-                <span>标题</span>
-                <span>年份</span>
-                <span>评分</span>
-                <span>添加日期</span>
-                <span>NFO</span>
-                <span>图片</span>
+            <div class="media-table movie-table" v-if="activeModule === 'movie'" ref="mediaScroller">
+              <div class="table-head" :style="movieGridStyle">
+                <span class="column-head">标题<i @pointerdown.stop="startColumnResize('movie', 0, $event)"></i></span>
+                <span class="column-head">年份<i @pointerdown.stop="startColumnResize('movie', 1, $event)"></i></span>
+                <span class="column-head">评分<i @pointerdown.stop="startColumnResize('movie', 2, $event)"></i></span>
+                <span class="column-head">添加日期<i @pointerdown.stop="startColumnResize('movie', 3, $event)"></i></span>
+                <span class="column-head">NFO<i @pointerdown.stop="startColumnResize('movie', 4, $event)"></i></span>
+                <span class="column-head">图片</span>
               </div>
               <button
                 class="table-row"
                 v-for="item in movieRows"
                 :key="item.id"
-                :class="{ selected: selectedItem && selectedItem.id === item.id }"
-                @click="selectItem(item)"
+                :style="movieGridStyle"
+                :class="{ selected: isItemSelected(item) }"
+                :data-row-key="'item:' + item.id"
+                @click="selectItem(item, $event)"
                 @contextmenu.prevent.stop="openContextMenu($event, 'movie', item)"
               >
                 <span>{{ item.titleGuess }}</span>
@@ -140,28 +142,28 @@
               <div class="empty table-empty" v-if="!movieRows.length">没有匹配条目。</div>
             </div>
 
-            <div class="media-table tv-tree" v-else>
-              <div class="table-head tv-head">
-                <span>剧集 / 季 / 集</span>
-                <span>年份</span>
-                <span>评分</span>
-                <span>添加日期</span>
-                <span>状态</span>
+            <div class="media-table tv-tree" v-else ref="mediaScroller">
+              <div class="table-head tv-head" :style="tvGridStyle">
+                <span class="column-head">剧集 / 季 / 集<i @pointerdown.stop="startColumnResize('tv', 0, $event)"></i></span>
+                <span class="column-head">年份<i @pointerdown.stop="startColumnResize('tv', 1, $event)"></i></span>
+                <span class="column-head">评分<i @pointerdown.stop="startColumnResize('tv', 2, $event)"></i></span>
+                <span class="column-head">添加日期<i @pointerdown.stop="startColumnResize('tv', 3, $event)"></i></span>
+                <span class="column-head">状态</span>
               </div>
               <template v-for="show in tvTree" :key="show.key">
-                <button class="tree-row show-row" @click="toggleShow(show.key); selectTvGroup('show', show)" @contextmenu.prevent.stop="openContextMenu($event, 'show', show)">
+                <button class="tree-row show-row" :style="tvGridStyle" :data-row-key="'show:' + show.key" @click="toggleShow(show.key); selectTvGroup('show', show)" @contextmenu.prevent.stop="openContextMenu($event, 'show', show)">
                   <span><b>{{ isShowExpanded(show.key) ? '▾' : '▸' }}</b>{{ show.title }}</span>
                   <span>{{ firstTVItem(show) ? firstTVItem(show).yearGuess || '-' : '-' }}</span>
-                  <span>{{ firstTVItem(show) ? formatRating(firstTVItem(show).rating) : '-' }}</span>
+                  <span>{{ formatRating(tvShowRating(show)) }}</span>
                   <span>{{ firstTVItem(show) ? formatDate(firstTVItem(show).dateAdded) : '-' }}</span>
                   <span>{{ show.seasons.length }} 季 / {{ show.episodes }} 集</span>
                 </button>
                 <template v-if="isShowExpanded(show.key)">
                   <template v-for="season in show.seasons" :key="season.key">
-                    <button class="tree-row season-row" @click="toggleSeason(season.key); selectTvGroup('season', season)" @contextmenu.prevent.stop="openContextMenu($event, 'season', { show, season })">
+                    <button class="tree-row season-row" :style="tvGridStyle" :data-row-key="'season:' + season.key" @click="toggleSeason(season.key); selectTvGroup('season', season)" @contextmenu.prevent.stop="openContextMenu($event, 'season', { show, season })">
                       <span><b>{{ isSeasonExpanded(season.key) ? '▾' : '▸' }}</b>{{ season.title }}</span>
                       <span>{{ season.items[0] ? season.items[0].yearGuess || '-' : '-' }}</span>
-                      <span>{{ season.items[0] ? formatRating(season.items[0].rating) : '-' }}</span>
+                      <span>-</span>
                       <span>{{ season.items[0] ? formatDate(season.items[0].dateAdded) : '-' }}</span>
                       <span>{{ season.items.length }} 集</span>
                     </button>
@@ -170,13 +172,15 @@
                       class="tree-row episode-row"
                       v-for="item in season.items"
                       :key="item.id"
-                      :class="{ selected: selectedItem && selectedItem.id === item.id }"
-                      @click="selectItem(item)"
+                      :style="tvGridStyle"
+                      :class="{ selected: isItemSelected(item) }"
+                      :data-row-key="'item:' + item.id"
+                      @click="selectItem(item, $event)"
                       @contextmenu.prevent.stop="openContextMenu($event, 'episode', item)"
                     >
                       <span>{{ itemSeasonText(item) }}</span>
                       <span>{{ item.yearGuess || '-' }}</span>
-                      <span>{{ formatRating(item.rating) }}</span>
+                      <span>{{ formatRating(tvEpisodeRating(item)) }}</span>
                       <span>{{ formatDate(item.dateAdded) }}</span>
                       <span>{{ itemStatusText(item) }}</span>
                     </button>
@@ -196,13 +200,9 @@
 
           <aside class="detail-pane">
             <template v-if="selectedSummary">
-              <div class="summary-fanart">
-                <img v-if="selectedSummary.fanart" :src="selectedSummary.fanart" alt="" />
-                <span v-else>Fanart</span>
-              </div>
               <section class="summary-body">
                 <div class="summary-poster">
-                  <img v-if="selectedSummary.poster" :src="selectedSummary.poster" alt="" />
+                  <img v-if="selectedSummary.poster" :src="selectedSummary.poster" alt="" @error="hideBrokenImage" />
                   <span v-else>Poster</span>
                 </div>
                 <div class="summary-title">
@@ -212,8 +212,10 @@
                 <dl class="summary-meta">
                   <dt>年份</dt>
                   <dd>{{ selectedSummary.year || '-' }}</dd>
-                  <dt>评分</dt>
-                  <dd>{{ formatRating(selectedSummary.rating) }}</dd>
+                  <template v-if="selectedSummary.showRatingField">
+                    <dt>评分</dt>
+                    <dd>{{ formatRating(selectedSummary.rating) }}</dd>
+                  </template>
                   <dt>添加日期</dt>
                   <dd>{{ formatDate(selectedSummary.dateAdded) }}</dd>
                   <dt>类型</dt>
@@ -222,14 +224,24 @@
                   <dd>{{ selectedSummary.matchedId || '-' }}</dd>
                   <dt>IMDb</dt>
                   <dd>{{ selectedSummary.imdbId || '-' }}</dd>
+                  <template v-if="selectedSummary.showMediaFields">
+                    <dt>视频格式</dt>
+                    <dd>{{ selectedSummary.videoFormat || '-' }}</dd>
+                    <dt>音频编码</dt>
+                    <dd>{{ selectedSummary.audioCodec || '-' }}</dd>
+                    <dt>文件大小</dt>
+                    <dd>{{ selectedSummary.fileSize || '-' }}</dd>
+                  </template>
                 </dl>
-                <div class="status-grid summary-status">
-                  <span :class="{ ok: selectedSummary.hasNfo }">NFO</span>
-                  <span :class="{ ok: selectedSummary.hasPoster }">Poster</span>
-                  <span :class="{ ok: selectedSummary.hasFanart }">Fanart</span>
-                  <span :class="{ ok: selectedSummary.hasSubtitle }">Subtitle</span>
-                </div>
                 <p class="summary-overview">{{ selectedSummary.overview || '暂无简介。' }}</p>
+                <div class="summary-fanart">
+                  <img v-if="selectedSummary.fanart" :src="selectedSummary.fanart" alt="" @error="hideBrokenImage" />
+                  <span v-else>Fanart</span>
+                </div>
+                <div class="summary-folder">
+                  <strong>文件夹</strong>
+                  <span>{{ selectedSummary.folderPath || '-' }}</span>
+                </div>
               </section>
             </template>
             <div v-else class="empty detail-empty">选择一个条目。</div>
@@ -237,7 +249,7 @@
         </section>
       </main>
 
-      <div class="modal-backdrop" v-if="browser.open">
+      <div class="modal-backdrop browser-backdrop" v-if="browser.open">
         <div class="modal">
           <header>
             <div>
@@ -265,6 +277,104 @@
         @click.stop
       >
         <button type="button" @click="openChooserFromContext">{{ contextMenuTitle() }}</button>
+        <button type="button" v-if="canRenameFromContext()" @click="openLocalRenameFromContext">重命名...</button>
+      </div>
+
+      <div class="modal-backdrop" v-if="localRename.open">
+        <div class="modal local-rename-modal">
+          <header>
+            <div>
+              <h2>{{ localRename.mode === 'movie' ? '重命名' : '批量重命名' }}</h2>
+              <p>{{ localRename.mode === 'movie' ? '修改媒体文件名。' : `共 ${localRename.rows.length} 个` }}</p>
+            </div>
+            <button type="button" @click="closeLocalRename">关闭</button>
+          </header>
+
+          <template v-if="localRename.mode === 'movie'">
+            <section class="local-rename-single">
+              <label>
+                文件名
+                <input v-model.trim="localRename.rows[0].newFileName" />
+              </label>
+            </section>
+          </template>
+
+          <template v-else>
+            <nav class="local-rename-tabs">
+              <button type="button" :class="{ active: localRename.tab === 'replace' }" @click="localRename.tab = 'replace'">批量替换</button>
+              <button type="button" :class="{ active: localRename.tab === 'add' }" @click="localRename.tab = 'add'">新增内容</button>
+              <button type="button" :class="{ active: localRename.tab === 'manual' }" @click="localRename.tab = 'manual'">手动修改</button>
+            </nav>
+
+            <section class="local-rename-controls" v-if="localRename.tab === 'replace'">
+              <label>
+                类型
+                <select disabled>
+                  <option>仅替换文件名</option>
+                </select>
+              </label>
+              <label>
+                文本
+                <input v-model="localRename.replaceText" placeholder="请输入要替换的内容" />
+              </label>
+              <label>
+                替换为
+                <input v-model="localRename.replaceWith" placeholder="请输入要替换为的内容" />
+              </label>
+            </section>
+
+            <section class="local-rename-controls" v-if="localRename.tab === 'add'">
+              <label>
+                类型
+                <select disabled>
+                  <option>文本</option>
+                </select>
+              </label>
+              <label>
+                位置
+                <select v-model="localRename.addPosition">
+                  <option value="prefix">文件名前</option>
+                  <option value="suffix">文件名后</option>
+                </select>
+              </label>
+              <label>
+                新增内容
+                <input v-model="localRename.addText" placeholder="请输入要新增的内容" />
+              </label>
+            </section>
+
+            <section class="local-rename-table" v-if="localRename.tab === 'manual'">
+              <div class="local-rename-head">
+                <span>文件名</span>
+                <span>新文件名</span>
+              </div>
+              <div class="local-rename-row" v-for="row in localRename.rows" :key="row.itemId">
+                <span>{{ row.fileName }}</span>
+                <input v-model.trim="row.newFileName" />
+              </div>
+            </section>
+
+            <section class="local-rename-table" v-else>
+              <div class="local-rename-head">
+                <span>文件名</span>
+                <span>新文件名</span>
+              </div>
+              <div class="local-rename-row" v-for="row in localRenamePreviewRows" :key="row.itemId">
+                <span>{{ row.fileName }}</span>
+                <span>{{ row.previewName }}</span>
+              </div>
+            </section>
+          </template>
+
+          <p class="chooser-error" v-if="localRename.error">{{ localRename.error }}</p>
+          <footer class="settings-footer">
+            <span class="local-rename-count">{{ localRename.rows.length }} 个文件</span>
+            <button type="button" :disabled="localRename.saving" @click="closeLocalRename">取消</button>
+            <button type="button" :disabled="!localRenameCanApply" @click="applyLocalRename">
+              {{ localRename.saving ? '保存中' : '确定' }}
+            </button>
+          </footer>
+        </div>
       </div>
 
       <div class="modal-backdrop" v-if="filterEditor.open">
@@ -415,25 +525,33 @@
             </div>
             <label class="check-row" v-if="chooser.mediaType === 'movie'">
               <input type="checkbox" v-model="chooser.options.metadata" />
-              元数据 / NFO
+              元数据
             </label>
             <label class="check-row" v-if="chooser.mediaType === 'tvshow'">
               <input type="checkbox" v-model="chooser.options.showMetadata" />
-              {{ chooser.scope === 'season' ? '季元数据 / season.nfo' : '电视剧元数据 / tvshow.nfo' }}
+              {{ chooser.scope === 'season' ? '季元数据' : '电视剧元数据' }}
             </label>
             <label class="check-row" v-if="chooser.mediaType === 'tvshow'">
               <input type="checkbox" v-model="chooser.options.episodeMetadata" />
-              更新{{ chooser.scope === 'season' ? '本季' : chooser.scope === 'show' ? '整剧' : '本集' }}匹配状态
+              {{ chooser.scope === 'season' ? '本季单集元数据 / 缩略图' : chooser.scope === 'show' ? '整剧单集元数据 / 缩略图' : '本集元数据 / 缩略图' }}
+            </label>
+            <label class="check-row">
+              <input type="checkbox" v-model="chooser.options.nfo" />
+              写入 NFO
             </label>
             <label class="check-row">
               <input type="checkbox" v-model="chooser.options.artwork" />
-              海报 / 背景图
+              图片
             </label>
-            <label class="check-row">
-              <input type="checkbox" v-model="chooser.options.overwrite" />
-              覆盖已有文件
-            </label>
-          </section>
+	            <label class="check-row">
+	              <input type="checkbox" v-model="chooser.options.overwrite" />
+	              覆盖已有文件
+	            </label>
+	            <label class="check-row">
+	              <input type="checkbox" v-model="chooser.options.renameAfterScrape" />
+	              刮削后自动重命名
+	            </label>
+	          </section>
 
           <footer class="settings-footer">
             <button type="button" :disabled="chooser.scraping" @click="closeChooser">取消</button>
@@ -626,9 +744,46 @@
                       <input type="checkbox" v-model="scraperSettings.tvShowEpisodeMetadata" />
                       整剧/整季刮削时更新集匹配状态
                     </label>
-                    <label class="check-row"><input type="checkbox" checked disabled /> 标题 / 原始标题</label>
-                    <label class="check-row"><input type="checkbox" checked disabled /> 简介 / 类型 / 评分</label>
-                    <label class="check-row"><input type="checkbox" checked disabled /> 演员 / TMDb ID</label>
+                  </div>
+                </fieldset>
+                <fieldset class="settings-fieldset">
+                  <legend>{{ activeSettingsPage === 'movie-scraper' ? '电影刮削内容' : '电视剧刮削内容' }}</legend>
+                  <div class="settings-inline-actions">
+                    <button type="button" @click="selectAllScraperFields(activeSettingsPage === 'movie-scraper' ? 'movie' : 'tvshow')">全选</button>
+                    <button type="button" @click="clearScraperFields(activeSettingsPage === 'movie-scraper' ? 'movie' : 'tvshow')">全不选</button>
+                  </div>
+                  <div class="scraper-field-groups">
+                    <section v-for="group in fieldGroups(activeSettingsPage === 'movie-scraper' ? 'movie' : 'tvshow')" :key="group.title" class="scraper-field-group">
+                      <h4>{{ group.title }}</h4>
+                      <label v-for="field in group.items" :key="field[0]" class="check-row">
+                        <input
+                          type="checkbox"
+                          :checked="scraperFieldSelected(activeSettingsPage === 'movie-scraper' ? 'movie' : 'tvshow', field[0])"
+                          @change="toggleScraperField(activeSettingsPage === 'movie-scraper' ? 'movie' : 'tvshow', field[0], $event)"
+                        />
+                        {{ field[1] }}
+                      </label>
+                    </section>
+                  </div>
+                </fieldset>
+                <fieldset class="settings-fieldset" v-if="activeSettingsPage === 'tvshow-scraper'">
+                  <legend>单集刮削内容</legend>
+                  <div class="settings-inline-actions">
+                    <button type="button" @click="selectAllScraperFields('episode')">全选</button>
+                    <button type="button" @click="clearScraperFields('episode')">全不选</button>
+                  </div>
+                  <div class="scraper-field-groups">
+                    <section v-for="group in fieldGroups('episode')" :key="group.title" class="scraper-field-group">
+                      <h4>{{ group.title }}</h4>
+                      <label v-for="field in group.items" :key="field[0]" class="check-row">
+                        <input
+                          type="checkbox"
+                          :checked="scraperFieldSelected('episode', field[0])"
+                          @change="toggleScraperField('episode', field[0], $event)"
+                        />
+                        {{ field[1] }}
+                      </label>
+                    </section>
                   </div>
                 </fieldset>
               </section>
@@ -725,16 +880,121 @@
                   <span>文件夹 / 文件名</span>
                 </div>
                 <fieldset class="settings-fieldset">
-                  <legend>模板</legend>
-                  <div class="settings-form-row">
+                  <legend>Renamer Pattern</legend>
+                  <div class="settings-form-row renamer-pattern-row">
                     <label>文件夹</label>
-                    <input v-model.trim="scraperSettings.movieRenamerPathname" />
+                    <textarea v-model="scraperSettings.movieRenamerPathname" rows="2"></textarea>
+                    <button type="button" title="恢复默认" @click="resetRenamerPattern('movie', 'Path')">↶</button>
                   </div>
-                  <div class="settings-form-row">
+                  <div class="settings-form-row renamer-default-row">
+                    <span>默认</span>
+                    <code>{{ DEFAULT_MOVIE_RENAMER_PATH }}</code>
+                  </div>
+                  <div class="settings-form-row renamer-pattern-row">
                     <label>文件名</label>
-                    <input v-model.trim="scraperSettings.movieRenamerFilename" />
+                    <textarea v-model="scraperSettings.movieRenamerFilename" rows="2"></textarea>
+                    <button type="button" title="恢复默认" @click="resetRenamerPattern('movie', 'File')">↶</button>
                   </div>
-                  <pre class="settings-example">{{ scraperSettings.movieRenamerPathname }}/{{ scraperSettings.movieRenamerFilename }}.mkv</pre>
+                  <div class="settings-form-row renamer-default-row">
+                    <span>默认</span>
+                    <code>{{ DEFAULT_MOVIE_RENAMER_FILE }}</code>
+                  </div>
+                  <p class="setting-note settings-indent">选择文件夹和文件命名规则。字段为空时跳过对应重命名。</p>
+                  <div class="renamer-token-table settings-indent">
+                    <div class="renamer-token-head">
+                      <span>Token</span>
+                      <span>Token description</span>
+                      <span>Value from the example</span>
+                    </div>
+                    <div v-for="row in renamerTokenRows('movie')" :key="row[0]" class="renamer-token-row">
+                      <code>{{ row[0] }}</code>
+                      <span>{{ row[1] }}</span>
+                      <span>{{ row[2] }}</span>
+                    </div>
+                  </div>
+                </fieldset>
+                <fieldset class="settings-fieldset">
+                  <legend>高级选项</legend>
+                  <label class="check-row settings-check">
+                    <input type="checkbox" v-model="scraperSettings.movieRenameAfterScrape" />
+                    刮削后自动重命名
+                  </label>
+                  <div class="settings-form-row renamer-option-row">
+                    <span></span>
+                    <label class="check-row">
+                      <input type="checkbox" v-model="scraperSettings.movieRenamerPathSpaceSubstitution" />
+                      替换文件夹名称中的空格为
+                    </label>
+                    <select v-model="scraperSettings.movieRenamerPathSpaceReplacement">
+                      <option value="_">_</option>
+                      <option value=".">.</option>
+                      <option value="-">-</option>
+                    </select>
+                  </div>
+                  <div class="settings-form-row renamer-option-row">
+                    <span></span>
+                    <label class="check-row">
+                      <input type="checkbox" v-model="scraperSettings.movieRenamerFilenameSpaceSubstitution" />
+                      替换文件名中的空格为
+                    </label>
+                    <select v-model="scraperSettings.movieRenamerFilenameSpaceReplacement">
+                      <option value="_">_</option>
+                      <option value=".">.</option>
+                      <option value="-">-</option>
+                    </select>
+                  </div>
+                  <div class="settings-form-row renamer-option-row">
+                    <label>替换冒号为</label>
+                    <select v-model="scraperSettings.movieRenamerColonReplacement">
+                      <option value=" ">空格</option>
+                      <option value="-">-</option>
+                      <option value="_">_</option>
+                    </select>
+                  </div>
+                  <label class="check-row settings-check">
+                    <input type="checkbox" v-model="scraperSettings.movieRenamerAsciiReplacement" />
+                    将非 ASCII 字符替换为基础 ASCII 等价字符
+                  </label>
+                  <p class="setting-note settings-indent">Examples: Ä → Ae; Ö → Oe; ß → ss; Á → A; Æ → Ae; …</p>
+                  <div class="settings-form-row renamer-short-row">
+                    <label>首字符数字替换</label>
+                    <input v-model.trim="scraperSettings.movieRenamerFirstCharacterReplacement" maxlength="2" />
+                  </div>
+                  <label class="check-row settings-check">
+                    <input type="checkbox" v-model="scraperSettings.movieRenamerCreateSingleMovieSet" />
+                    对仅包含一部电影的电影集合也启用 movie set tokens
+                  </label>
+                  <label class="check-row settings-check">
+                    <input type="checkbox" v-model="scraperSettings.movieRenamerNfoCleanup" />
+                    移除其它 NFO
+                  </label>
+                  <label class="check-row settings-check">
+                    <input type="checkbox" v-model="scraperSettings.movieRenamerCleanupUnwanted" />
+                    清理不需要的文件
+                  </label>
+                  <label class="check-row settings-check">
+                    <input type="checkbox" v-model="scraperSettings.movieRenamerAllowMerge" />
+                    允许重命名电影到已存在 / 其它电影文件夹
+                  </label>
+                </fieldset>
+                <fieldset class="settings-fieldset">
+                  <legend>示例</legend>
+                  <div class="settings-form-row renamer-example-row">
+                    <label>电影</label>
+                    <span>{{ movieRenamerExample().movie }}</span>
+                  </div>
+                  <div class="settings-form-row renamer-example-row">
+                    <label>Datasource</label>
+                    <span>{{ movieRenamerExample().datasource }}</span>
+                  </div>
+                  <div class="settings-form-row renamer-example-row">
+                    <label>Folder name</label>
+                    <span>{{ movieRenamerExample().folder }}</span>
+                  </div>
+                  <div class="settings-form-row renamer-example-row">
+                    <label>Filename</label>
+                    <span>{{ movieRenamerExample().filename }}</span>
+                  </div>
                 </fieldset>
               </section>
 
@@ -744,20 +1004,134 @@
                   <span>剧集 / 季 / 集文件</span>
                 </div>
                 <fieldset class="settings-fieldset">
-                  <legend>模板</legend>
-                  <div class="settings-form-row">
+                  <legend>Renamer Pattern</legend>
+                  <div class="settings-form-row renamer-pattern-row">
                     <label>剧集文件夹</label>
-                    <input v-model.trim="scraperSettings.tvShowRenamerShowFolder" />
+                    <textarea v-model="scraperSettings.tvShowRenamerShowFolder" rows="2"></textarea>
+                    <button type="button" title="恢复默认" @click="resetRenamerPattern('tv', 'Show')">↶</button>
                   </div>
-                  <div class="settings-form-row">
+                  <div class="settings-form-row renamer-default-row">
+                    <span>默认</span>
+                    <code>{{ DEFAULT_TVSHOW_RENAMER_PATH }}</code>
+                  </div>
+                  <div class="settings-form-row renamer-pattern-row">
                     <label>季文件夹</label>
-                    <input v-model.trim="scraperSettings.tvShowRenamerSeason" />
+                    <textarea v-model="scraperSettings.tvShowRenamerSeason" rows="2"></textarea>
+                    <button type="button" title="恢复默认" @click="resetRenamerPattern('tv', 'Season')">↶</button>
                   </div>
-                  <div class="settings-form-row">
+                  <div class="settings-form-row renamer-default-row">
+                    <span>默认</span>
+                    <code>{{ DEFAULT_TVSHOW_RENAMER_SEASON }}</code>
+                  </div>
+                  <div class="settings-form-row renamer-pattern-row">
                     <label>集文件名</label>
-                    <input v-model.trim="scraperSettings.tvShowRenamerFilename" />
+                    <textarea v-model="scraperSettings.tvShowRenamerFilename" rows="2"></textarea>
+                    <button type="button" title="恢复默认" @click="resetRenamerPattern('tv', 'File')">↶</button>
                   </div>
-                  <pre class="settings-example">{{ scraperSettings.tvShowRenamerShowFolder }}/{{ scraperSettings.tvShowRenamerSeason }}/{{ scraperSettings.tvShowRenamerFilename }}.mkv</pre>
+                  <div class="settings-form-row renamer-default-row">
+                    <span>默认</span>
+                    <code>{{ DEFAULT_TVSHOW_RENAMER_FILE }}</code>
+                  </div>
+                  <p class="setting-note settings-indent">选择剧集文件夹、季文件夹和单集文件命名规则。字段为空时跳过对应重命名。</p>
+                  <div class="renamer-token-table settings-indent">
+                    <div class="renamer-token-head">
+                      <span>Token</span>
+                      <span>Token description</span>
+                      <span>Value from the example</span>
+                    </div>
+                    <div v-for="row in renamerTokenRows('tvshow')" :key="row[0]" class="renamer-token-row">
+                      <code>{{ row[0] }}</code>
+                      <span>{{ row[1] }}</span>
+                      <span>{{ row[2] }}</span>
+                    </div>
+                  </div>
+                </fieldset>
+                <fieldset class="settings-fieldset">
+                  <legend>高级选项</legend>
+                  <label class="check-row settings-check">
+                    <input type="checkbox" v-model="scraperSettings.tvShowRenameAfterScrape" />
+                    刮削后自动重命名
+                  </label>
+                  <div class="settings-form-row renamer-option-row">
+                    <span></span>
+                    <label class="check-row">
+                      <input type="checkbox" v-model="scraperSettings.tvShowRenamerShowFolderSpaceSubstitution" />
+                      替换电视剧文件夹名称中的空格为
+                    </label>
+                    <select v-model="scraperSettings.tvShowRenamerShowFolderSpaceReplacement">
+                      <option value="_">_</option>
+                      <option value=".">.</option>
+                      <option value="-">-</option>
+                    </select>
+                  </div>
+                  <div class="settings-form-row renamer-option-row">
+                    <span></span>
+                    <label class="check-row">
+                      <input type="checkbox" v-model="scraperSettings.tvShowRenamerSeasonFolderSpaceSubstitution" />
+                      替换季文件夹名称中的空格为
+                    </label>
+                    <select v-model="scraperSettings.tvShowRenamerSeasonFolderSpaceReplacement">
+                      <option value="_">_</option>
+                      <option value=".">.</option>
+                      <option value="-">-</option>
+                    </select>
+                  </div>
+                  <div class="settings-form-row renamer-option-row">
+                    <span></span>
+                    <label class="check-row">
+                      <input type="checkbox" v-model="scraperSettings.tvShowRenamerFilenameSpaceSubstitution" />
+                      替换文件名中的空格为
+                    </label>
+                    <select v-model="scraperSettings.tvShowRenamerFilenameSpaceReplacement">
+                      <option value="_">_</option>
+                      <option value=".">.</option>
+                      <option value="-">-</option>
+                    </select>
+                  </div>
+                  <div class="settings-form-row renamer-option-row">
+                    <label>替换冒号为</label>
+                    <select v-model="scraperSettings.tvShowRenamerColonReplacement">
+                      <option value=" ">空格</option>
+                      <option value="-">-</option>
+                      <option value="_">_</option>
+                    </select>
+                  </div>
+                  <label class="check-row settings-check">
+                    <input type="checkbox" v-model="scraperSettings.tvShowRenamerAsciiReplacement" />
+                    将非 ASCII 字符替换为基础 ASCII 等价字符
+                  </label>
+                  <p class="setting-note settings-indent">Examples: Ä → Ae; Ö → Oe; ß → ss; Á → A; Æ → Ae; …</p>
+                  <label class="check-row settings-check">
+                    <input type="checkbox" v-model="scraperSettings.tvShowRenamerCleanupUnwanted" />
+                    清理不需要的文件
+                  </label>
+                  <div class="settings-form-row renamer-short-row">
+                    <label>首字符数字替换</label>
+                    <input v-model.trim="scraperSettings.tvShowRenamerFirstCharacterReplacement" maxlength="2" />
+                  </div>
+                </fieldset>
+                <fieldset class="settings-fieldset">
+                  <legend>示例</legend>
+                  <div class="settings-form-row renamer-example-row">
+                    <label>TV show</label>
+                    <span>{{ tvRenamerExample().show }}</span>
+                  </div>
+                  <div class="settings-form-row renamer-example-row">
+                    <label>Episode</label>
+                    <span>{{ tvRenamerExample().episode }}</span>
+                  </div>
+                  <div class="settings-form-row renamer-example-row">
+                    <label>Datasource</label>
+                    <span>{{ tvRenamerExample().datasource }}</span>
+                  </div>
+                  <div class="settings-form-row renamer-example-row">
+                    <label>Folder name</label>
+                    <span>{{ tvRenamerExample().folder }}</span>
+                  </div>
+                  <div class="settings-form-row renamer-example-row">
+                    <label>Filename</label>
+                    <span>{{ tvRenamerExample().filename }}</span>
+                  </div>
                 </fieldset>
               </section>
 
@@ -782,6 +1156,6 @@
         </form>
       </div>
     </div>
-    <script src="/app.js"></script>
+    <script src="/app.js?v=dev"></script>
   </body>
 </html>

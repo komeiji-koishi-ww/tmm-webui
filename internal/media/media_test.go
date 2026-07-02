@@ -18,10 +18,41 @@ func TestBuildMovieRename(t *testing.T) {
 		Dir:  "/media/Movies/Old",
 	}
 	preview := BuildMovieRename(item, "Blade/Runner", "1982", 78, "")
-	if preview.TargetDir != "/media/Movies/Blade Runner (1982) {tmdb-78}" {
+	if preview.TargetDir != "/media/Movies/Blade Runner (1982)" {
 		t.Fatalf("target dir = %q", preview.TargetDir)
 	}
-	if preview.TargetFile != "/media/Movies/Blade Runner (1982) {tmdb-78}/Blade Runner (1982) {tmdb-78}.mkv" {
+	if preview.TargetFile != "/media/Movies/Blade Runner (1982)/Blade Runner (1982).mkv" {
+		t.Fatalf("target file = %q", preview.TargetFile)
+	}
+}
+
+func TestLightweightMediaInfoFromFilename(t *testing.T) {
+	_, _, videoFormat, audioCodec := LightweightMediaInfo("/media/Movie.2024.2160p.WEB-DL.DTS-HD.MA.mkv", nil)
+	if videoFormat != "2160p" {
+		t.Fatalf("videoFormat = %q", videoFormat)
+	}
+	if audioCodec != "DTS-HD MA" {
+		t.Fatalf("audioCodec = %q", audioCodec)
+	}
+	if size := FormatFileSize(13 * 1024 * 1024 * 1024); size != "13.0GB" {
+		t.Fatalf("fileSize = %q", size)
+	}
+}
+
+func TestRenamePatternUsesLightweightMediaInfo(t *testing.T) {
+	item := Item{
+		Path:        "/media/Movies/Old/Movie.1080p.DTS.mkv",
+		Dir:         "/media/Movies/Old",
+		FileName:    "Movie.1080p.DTS.mkv",
+		VideoFormat: "1080p",
+		AudioCodec:  "DTS",
+		FileSize:    "8.4GB",
+	}
+	preview := BuildMovieRenameWithPatterns(item, "喜剧之王", "1999", 0, "${title} (${year}) ${videoFormat} - ${fileSize}", "${title} (${year}) ${videoFormat} ${audioCodec} ${fileSize}")
+	if preview.TargetDir != "/media/Movies/喜剧之王 (1999) 1080p - 8.4GB" {
+		t.Fatalf("target dir = %q", preview.TargetDir)
+	}
+	if preview.TargetFile != "/media/Movies/喜剧之王 (1999) 1080p - 8.4GB/喜剧之王 (1999) 1080p DTS 8.4GB.mkv" {
 		t.Fatalf("target file = %q", preview.TargetFile)
 	}
 }

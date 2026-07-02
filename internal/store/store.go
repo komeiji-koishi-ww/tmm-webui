@@ -130,6 +130,12 @@ func (s *Store) SaveItems(items []media.Item) error {
 	})
 }
 
+func (s *Store) DeleteItem(id string) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket(itemsBucket).Delete([]byte(id))
+	})
+}
+
 func (s *Store) PruneLibraryItems(libraryID string, items []media.Item) error {
 	current := make(map[string]struct{}, len(items))
 	for _, item := range items {

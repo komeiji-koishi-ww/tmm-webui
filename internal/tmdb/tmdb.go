@@ -43,12 +43,16 @@ type Movie struct {
 	BackdropPath string   `json:"backdropPath"`
 	Genres       []string `json:"genres"`
 	VoteAverage  float64  `json:"voteAverage"`
+	VoteCount    int      `json:"voteCount,omitempty"`
 	ImdbID       string   `json:"imdbId"`
+	Studios      []string `json:"studios,omitempty"`
 	Cast         []string `json:"cast,omitempty"`
+	CastPeople   []Person `json:"castPeople,omitempty"`
 }
 
 type TVShow struct {
 	ID           int      `json:"id"`
+	TVDBID       int      `json:"tvdbId,omitempty"`
 	Title        string   `json:"title"`
 	Original     string   `json:"originalTitle"`
 	Overview     string   `json:"overview"`
@@ -57,7 +61,10 @@ type TVShow struct {
 	BackdropPath string   `json:"backdropPath"`
 	Genres       []string `json:"genres"`
 	VoteAverage  float64  `json:"voteAverage"`
+	VoteCount    int      `json:"voteCount,omitempty"`
+	Studios      []string `json:"studios,omitempty"`
 	Cast         []string `json:"cast,omitempty"`
+	CastPeople   []Person `json:"castPeople,omitempty"`
 }
 
 type TVSeason struct {
@@ -74,14 +81,27 @@ type TVSeason struct {
 }
 
 type TVEpisode struct {
-	ID            int     `json:"id"`
-	SeasonNumber  int     `json:"seasonNumber"`
-	EpisodeNumber int     `json:"episodeNumber"`
-	Title         string  `json:"title"`
-	Overview      string  `json:"overview"`
-	AirDate       string  `json:"airDate"`
-	StillPath     string  `json:"stillPath"`
-	VoteAverage   float64 `json:"voteAverage"`
+	ID            int      `json:"id"`
+	SeasonNumber  int      `json:"seasonNumber"`
+	EpisodeNumber int      `json:"episodeNumber"`
+	Title         string   `json:"title"`
+	Overview      string   `json:"overview"`
+	AirDate       string   `json:"airDate"`
+	StillPath     string   `json:"stillPath"`
+	VoteAverage   float64  `json:"voteAverage"`
+	VoteCount     int      `json:"voteCount,omitempty"`
+	Runtime       int      `json:"runtime,omitempty"`
+	Directors     []Person `json:"directors,omitempty"`
+	Writers       []Person `json:"writers,omitempty"`
+	Actors        []Person `json:"actors,omitempty"`
+}
+
+type Person struct {
+	ID          int    `json:"id,omitempty"`
+	Name        string `json:"name"`
+	Role        string `json:"role,omitempty"`
+	ProfilePath string `json:"profilePath,omitempty"`
+	Guest       bool   `json:"guest,omitempty"`
 }
 
 func (c Client) Enabled() bool {
@@ -181,15 +201,25 @@ func (c Client) Movie(id int) (Movie, error) {
 		PosterPath   string  `json:"poster_path"`
 		BackdropPath string  `json:"backdrop_path"`
 		VoteAverage  float64 `json:"vote_average"`
+		VoteCount    int     `json:"vote_count"`
 		Genres       []struct {
 			Name string `json:"name"`
 		} `json:"genres"`
+		ProductionCompanies []struct {
+			Name string `json:"name"`
+		} `json:"production_companies"`
+		Networks []struct {
+			Name string `json:"name"`
+		} `json:"networks"`
 		ExternalIDs struct {
 			ImdbID string `json:"imdb_id"`
 		} `json:"external_ids"`
 		Credits struct {
 			Cast []struct {
-				Name string `json:"name"`
+				ID          int    `json:"id"`
+				Name        string `json:"name"`
+				Character   string `json:"character"`
+				ProfilePath string `json:"profile_path"`
 			} `json:"cast"`
 		} `json:"credits"`
 	}
@@ -200,7 +230,7 @@ func (c Client) Movie(id int) (Movie, error) {
 		ID: response.ID, Title: response.Title, Original: response.Original,
 		Overview: response.Overview, ReleaseDate: response.ReleaseDate, Runtime: response.Runtime,
 		PosterPath: response.PosterPath, BackdropPath: response.BackdropPath,
-		VoteAverage: response.VoteAverage, ImdbID: response.ExternalIDs.ImdbID,
+		VoteAverage: response.VoteAverage, VoteCount: response.VoteCount, ImdbID: response.ExternalIDs.ImdbID,
 	}
 	for _, genre := range response.Genres {
 		movie.Genres = append(movie.Genres, genre.Name)
@@ -208,6 +238,16 @@ func (c Client) Movie(id int) (Movie, error) {
 	for _, person := range response.Credits.Cast {
 		if person.Name != "" && len(movie.Cast) < 12 {
 			movie.Cast = append(movie.Cast, person.Name)
+		}
+		if person.Name != "" {
+			movie.CastPeople = append(movie.CastPeople, Person{
+				ID: person.ID, Name: person.Name, Role: person.Character, ProfilePath: person.ProfilePath,
+			})
+		}
+	}
+	for _, company := range response.ProductionCompanies {
+		if company.Name != "" {
+			movie.Studios = append(movie.Studios, company.Name)
 		}
 	}
 	return movie, nil
@@ -217,7 +257,7 @@ func (c Client) TVShow(id int) (TVShow, error) {
 	values := url.Values{}
 	values.Set("api_key", c.Key)
 	values.Set("language", c.language())
-	values.Set("append_to_response", "credits")
+	values.Set("append_to_response", "external_ids,credits")
 	var response struct {
 		ID           int     `json:"id"`
 		Name         string  `json:"name"`
@@ -227,23 +267,36 @@ func (c Client) TVShow(id int) (TVShow, error) {
 		PosterPath   string  `json:"poster_path"`
 		BackdropPath string  `json:"backdrop_path"`
 		VoteAverage  float64 `json:"vote_average"`
+		VoteCount    int     `json:"vote_count"`
 		Genres       []struct {
 			Name string `json:"name"`
 		} `json:"genres"`
+		ProductionCompanies []struct {
+			Name string `json:"name"`
+		} `json:"production_companies"`
+		Networks []struct {
+			Name string `json:"name"`
+		} `json:"networks"`
 		Credits struct {
 			Cast []struct {
-				Name string `json:"name"`
+				ID          int    `json:"id"`
+				Name        string `json:"name"`
+				Character   string `json:"character"`
+				ProfilePath string `json:"profile_path"`
 			} `json:"cast"`
 		} `json:"credits"`
+		ExternalIDs struct {
+			TVDBID int `json:"tvdb_id"`
+		} `json:"external_ids"`
 	}
 	if err := c.get(fmt.Sprintf("/tv/%d?%s", id, values.Encode()), &response); err != nil {
 		return TVShow{}, err
 	}
 	show := TVShow{
-		ID: response.ID, Title: response.Name, Original: response.OriginalName,
+		ID: response.ID, TVDBID: response.ExternalIDs.TVDBID, Title: response.Name, Original: response.OriginalName,
 		Overview: response.Overview, FirstAirDate: response.FirstAirDate,
 		PosterPath: response.PosterPath, BackdropPath: response.BackdropPath,
-		VoteAverage: response.VoteAverage,
+		VoteAverage: response.VoteAverage, VoteCount: response.VoteCount,
 	}
 	for _, genre := range response.Genres {
 		show.Genres = append(show.Genres, genre.Name)
@@ -251,6 +304,21 @@ func (c Client) TVShow(id int) (TVShow, error) {
 	for _, person := range response.Credits.Cast {
 		if person.Name != "" && len(show.Cast) < 12 {
 			show.Cast = append(show.Cast, person.Name)
+		}
+		if person.Name != "" {
+			show.CastPeople = append(show.CastPeople, Person{
+				ID: person.ID, Name: person.Name, Role: person.Character, ProfilePath: person.ProfilePath,
+			})
+		}
+	}
+	for _, company := range response.ProductionCompanies {
+		if company.Name != "" {
+			show.Studios = append(show.Studios, company.Name)
+		}
+	}
+	for _, network := range response.Networks {
+		if network.Name != "" {
+			show.Studios = append(show.Studios, network.Name)
 		}
 	}
 	return show, nil
@@ -277,6 +345,21 @@ func (c Client) TVSeason(showID int, seasonNumber int, showTitle string) (TVSeas
 			SeasonNumber  int     `json:"season_number"`
 			StillPath     string  `json:"still_path"`
 			VoteAverage   float64 `json:"vote_average"`
+			VoteCount     int     `json:"vote_count"`
+			Runtime       int     `json:"runtime"`
+			Crew          []struct {
+				ID          int    `json:"id"`
+				Name        string `json:"name"`
+				Job         string `json:"job"`
+				Department  string `json:"department"`
+				ProfilePath string `json:"profile_path"`
+			} `json:"crew"`
+			GuestStars []struct {
+				ID          int    `json:"id"`
+				Name        string `json:"name"`
+				Character   string `json:"character"`
+				ProfilePath string `json:"profile_path"`
+			} `json:"guest_stars"`
 		} `json:"episodes"`
 	}
 	if err := c.get(fmt.Sprintf("/tv/%d/season/%d?%s", showID, seasonNumber, values.Encode()), &response); err != nil {
@@ -288,11 +371,31 @@ func (c Client) TVSeason(showID int, seasonNumber int, showTitle string) (TVSeas
 		PosterPath: response.PosterPath, VoteAverage: response.VoteAverage,
 	}
 	for _, episode := range response.Episodes {
-		season.Episodes = append(season.Episodes, TVEpisode{
+		item := TVEpisode{
 			ID: episode.ID, SeasonNumber: episode.SeasonNumber, EpisodeNumber: episode.EpisodeNumber,
 			Title: episode.Name, Overview: episode.Overview, AirDate: episode.AirDate,
-			StillPath: episode.StillPath, VoteAverage: episode.VoteAverage,
-		})
+			StillPath: episode.StillPath, VoteAverage: episode.VoteAverage, VoteCount: episode.VoteCount,
+			Runtime: episode.Runtime,
+		}
+		for _, person := range episode.Crew {
+			member := Person{ID: person.ID, Name: person.Name, Role: person.Job, ProfilePath: person.ProfilePath}
+			switch strings.ToLower(strings.TrimSpace(person.Job)) {
+			case "director":
+				item.Directors = append(item.Directors, member)
+			case "writer", "screenplay", "story", "teleplay":
+				item.Writers = append(item.Writers, member)
+			default:
+				if strings.EqualFold(strings.TrimSpace(person.Department), "Writing") {
+					item.Writers = append(item.Writers, member)
+				}
+			}
+		}
+		for _, person := range episode.GuestStars {
+			item.Actors = append(item.Actors, Person{
+				ID: person.ID, Name: person.Name, Role: person.Character, ProfilePath: person.ProfilePath, Guest: true,
+			})
+		}
+		season.Episodes = append(season.Episodes, item)
 	}
 	return season, nil
 }

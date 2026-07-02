@@ -1,5 +1,177 @@
 const { createApp } = Vue;
 
+const TMM_SCRAPER_FIELDS = {
+  movie: [
+    { title: "元数据", items: [["ID", "ID / TMDb / IMDb"], ["TITLE", "标题"], ["ORIGINAL_TITLE", "原始标题"], ["TAGLINE", "标语"], ["PLOT", "简介"], ["YEAR", "年份"], ["RELEASE_DATE", "上映日期"], ["RATING", "评分"], ["TOP250", "Top 250"], ["RUNTIME", "时长"], ["CERTIFICATION", "分级"], ["GENRES", "类型"], ["SPOKEN_LANGUAGES", "语言"], ["COUNTRY", "国家"], ["PRODUCTION_COMPANY", "制作公司"], ["TAGS", "标签"], ["COLLECTION", "电影集合"], ["TRAILER", "预告片"]] },
+    { title: "演职员", items: [["ACTORS", "演员"], ["PRODUCERS", "制片"], ["DIRECTORS", "导演"], ["WRITERS", "编剧"]] },
+    { title: "图片", items: [["POSTER", "海报"], ["FANART", "同人图"], ["BANNER", "横幅"], ["CLEARART", "ClearArt"], ["THUMB", "缩略图"], ["CLEARLOGO", "ClearLogo"], ["DISCART", "碟图"], ["KEYART", "KeyArt"], ["EXTRAFANART", "Extra Fanart"], ["EXTRATHUMB", "Extra Thumb"]] },
+  ],
+  tvshow: [
+    { title: "剧集元数据", items: [["ID", "ID / TMDb"], ["TITLE", "标题"], ["ORIGINAL_TITLE", "原始标题"], ["PLOT", "简介"], ["YEAR", "年份"], ["AIRED", "首播"], ["STATUS", "状态"], ["RATING", "评分"], ["TOP250", "Top 250"], ["RUNTIME", "时长"], ["CERTIFICATION", "分级"], ["GENRES", "类型"], ["COUNTRY", "国家"], ["STUDIO", "电视台/工作室"], ["TAGS", "标签"], ["TRAILER", "预告片"], ["SEASON_NAMES", "季名称"], ["SEASON_OVERVIEW", "季简介"]] },
+    { title: "演职员", items: [["ACTORS", "演员"]] },
+    { title: "剧集图片", items: [["POSTER", "海报"], ["FANART", "同人图"], ["BANNER", "横幅"], ["CLEARART", "ClearArt"], ["THUMB", "缩略图"], ["CLEARLOGO", "ClearLogo"], ["DISCART", "碟图"], ["KEYART", "KeyArt"], ["CHARACTERART", "角色图"], ["EXTRAFANART", "Extra Fanart"], ["SEASON_POSTER", "季海报"], ["SEASON_FANART", "季同人图"], ["SEASON_BANNER", "季横幅"], ["SEASON_THUMB", "季缩略图"], ["THEME", "主题曲"]] },
+  ],
+  episode: [
+    { title: "单集元数据", items: [["TITLE", "标题"], ["ORIGINAL_TITLE", "原始标题"], ["PLOT", "简介"], ["SEASON_EPISODE", "季/集编号"], ["AIRED", "首播"], ["RATING", "评分"], ["TAGS", "标签"]] },
+    { title: "演职员", items: [["ACTORS", "演员"], ["DIRECTORS", "导演"], ["WRITERS", "编剧"]] },
+    { title: "图片", items: [["THUMB", "缩略图"]] },
+  ],
+};
+
+const TMM_RENAMER_TOKENS = [
+  "${title}", "${originalTitle}", "${edition}", "${year}", "${releaseDate}", "${rating}", "${imdb}", "${tmdb}",
+  "${videoFormat}", "${audioCodec}", "${fileSize}",
+  "${showTitle}", "${showYear}", "${seasonNr}", "${seasonNr2}", "${episodeNr}", "${episodeNr2}", "${aired}",
+];
+
+const MOVIE_RENAMER_TOKEN_ROWS = [
+  ["${title}", "标题", "银翼杀手"],
+  ["${originalTitle}", "原始标题", "Blade Runner"],
+  ["${originalFilename}", "原始文件名", "Blade.Runner.1982.1080p.DTS.mkv"],
+  ["${originalBasename}", "不带扩展名的原始文件名", "Blade.Runner.1982.1080p.DTS"],
+  ["${title[0]}", "标题第一个字符", "银"],
+  ["${title;first}", "首字母或非字母替换字符", "银"],
+  ["${title[0,2]}", "标题前两个字符", "银翼"],
+  ["${titleSortable}", "排序标题", "银翼杀手"],
+  ["${year}", "年份", "1982"],
+  ["${releaseDate}", "上映日期", "1982-06-25"],
+  ["${movieSet.title}", "电影集合标题", "银翼杀手系列"],
+  ["${movieSet.titleSortable}", "电影集合排序标题", "银翼杀手系列"],
+  ["${movieSetIndex}", "集合中的序号", "1"],
+  ["${rating}", "评分", "8.1"],
+  ["${imdb}", "IMDb ID", "tt0083658"],
+  ["${tmdb}", "TMDb ID", "78"],
+  ["${certification}", "分级", "R"],
+  ["${directors[0].name}", "第一位导演", "Ridley Scott"],
+  ["${actors[0].name}", "第一位演员", "Harrison Ford"],
+  ["${genres[0]}", "第一个类型", "科幻"],
+  ["${genresAsString}", "全部类型", "科幻, 惊悚"],
+  ["${genres[0].name}", "第一个英文类型", "Science Fiction"],
+  ["${tags[0]}", "第一个标签", "Cyberpunk"],
+  ["${productionCompany}", "制作公司", "Warner Bros."],
+  ["${productionCompanyAsArray[0]}", "第一制作公司", "Warner Bros."],
+  ["${language}", "语言", "zh-CN"],
+  ["${videoResolution}", "视频分辨率", "1920x1080"],
+  ["${aspectRatio}", "画面比例", "178"],
+  ["${aspectRatio2}", "第二画面比例", ""],
+  ["${videoCodec}", "视频编码", "H.264"],
+  ["${videoFormat}", "视频格式", "1080p"],
+  ["${videoBitDepth}", "视频位深", "10"],
+  ["${videoBitRate}", "视频码率", "10.5 Mbps"],
+  ["${framerate}", "帧率", "23.976"],
+  ["${audioCodec}", "默认音频编码", "DTS"],
+  ["${audioCodecList}", "全部音频编码数组", "[DTS, AC3]"],
+  ["${audioCodecsAsString}", "全部音频编码", "DTS, AC3"],
+  ["${audioChannels}", "默认音轨声道", "6ch"],
+  ["${audioChannelList}", "全部声道数组", "[6ch, 2ch]"],
+  ["${audioChannelsAsString}", "全部声道", "6ch, 2ch"],
+  ["${audioChannelsDot}", "默认声道点号格式", "5.1"],
+  ["${audioChannelDotList}", "全部点号声道数组", "[5.1, 2.0]"],
+  ["${audioChannelsDotAsString}", "全部点号声道", "5.1, 2.0"],
+  ["${audioLanguage}", "默认音轨语言", "ZH"],
+  ["${audioLanguageList}", "全部音轨语言数组", "[ZH, EN]"],
+  ["${audioLanguagesAsString}", "全部音轨语言", "ZH, EN"],
+  ["${subtitleLanguageList}", "字幕语言数组", "[ZH, EN]"],
+  ["${subtitleLanguagesAsString}", "字幕语言", "ZH, EN"],
+  ["${mediaSource}", "媒体来源", "BluRay"],
+  ["${3Dformat}", "3D 标记", "3D SBS"],
+  ["${edition}", "版本", "Final Cut"],
+  ["${hdr}", "HDR", "HDR"],
+  ["${hdrformat}", "HDR 格式", "HDR10"],
+  ["${filesize}", "视频文件大小", "12.4 GB"],
+  ["${fileSize}", "视频文件大小", "12.4GB"],
+  ["${parent}", "数据源和父目录之间的路径", "科幻"],
+  ["${note}", "备注", "Director's Cut"],
+  ["${decadeLong}", "年代", "1980s"],
+  ["${decadeShort}", "年代短格式", "80s"],
+  ["${crc32}", "CRC32", "A1B2C3D4"],
+];
+
+const TV_RENAMER_TOKEN_ROWS = [
+  ["${showTitle}", "电视剧标题", "绝命毒师"],
+  ["${showOriginalTitle}", "电视剧原始标题", "Breaking Bad"],
+  ["${showTitleSortable}", "电视剧排序标题", "Breaking Bad"],
+  ["${showImdb}", "电视剧 IMDb ID", "tt0903747"],
+  ["${showTmdb}", "电视剧 TMDb ID", "1396"],
+  ["${showTvdb}", "电视剧 TVDB ID", "81189"],
+  ["${showYear}", "电视剧年份", "2008"],
+  ["${showStatus}", "电视剧状态", "Ended"],
+  ["${showTags[0]}", "剧集第一个标签", "Crime"],
+  ["${title}", "单集标题", "试播集"],
+  ["${originalTitle}", "单集原始标题", "Pilot"],
+  ["${originalFilename}", "单集原始文件名", "Breaking.Bad.S01E01.1080p.EAC3.mkv"],
+  ["${originalBasename}", "不带扩展名的原始文件名", "Breaking.Bad.S01E01.1080p.EAC3"],
+  ["${titleSortable}", "单集排序标题", "Pilot"],
+  ["${year}", "单集年份", "2008"],
+  ["${airedDate}", "单集首播日期", "2008-01-20"],
+  ["${aired}", "单集首播日期", "2008-01-20"],
+  ["${seasonNr}", "季编号", "1"],
+  ["${seasonNr2}", "两位季编号", "01"],
+  ["${seasonNrAired}", "播出季编号", "1"],
+  ["${seasonNrAired2}", "两位播出季编号", "01"],
+  ["${seasonName}", "季名称", "Season 1"],
+  ["${seasonNrDvd}", "DVD 季编号", "1"],
+  ["${seasonNrDvd2}", "两位 DVD 季编号", "01"],
+  ["${episodeNr}", "集编号", "1"],
+  ["${episodeNr2}", "两位集编号", "01"],
+  ["${episodeNrAired}", "播出集编号", "1"],
+  ["${episodeNrAired2}", "两位播出集编号", "01"],
+  ["${episodeNrDvd}", "DVD 集编号", "1"],
+  ["${episodeNrDvd2}", "两位 DVD 集编号", "01"],
+  ["${absoluteNr}", "绝对集编号", "1"],
+  ["${absoluteNr2}", "两位绝对集编号", "01"],
+  ["${episodeImdb}", "单集 IMDb ID", "tt0959621"],
+  ["${episodeTmdb}", "单集 TMDb ID", "62085"],
+  ["${episodeTvdb}", "单集 TVDB ID", "349232"],
+  ["${episodeTags[0]}", "单集第一个标签", "Pilot"],
+  ["${videoResolution}", "视频分辨率", "1920x1080"],
+  ["${aspectRatio}", "画面比例", "178"],
+  ["${aspectRatio2}", "第二画面比例", ""],
+  ["${videoCodec}", "视频编码", "H.264"],
+  ["${videoFormat}", "视频格式", "1080p"],
+  ["${videoBitDepth}", "视频位深", "10"],
+  ["${videoBitRate}", "视频码率", "10.5 Mbps"],
+  ["${framerate}", "帧率", "23.976"],
+  ["${audioCodec}", "第一音轨编码", "EAC3"],
+  ["${audioCodecList}", "全部音频编码数组", "[EAC3, AC3]"],
+  ["${audioCodecsAsString}", "全部音频编码", "EAC3, AC3"],
+  ["${audioChannels}", "默认音轨声道", "6ch"],
+  ["${audioChannelList}", "全部声道数组", "[6ch, 2ch]"],
+  ["${audioChannelsAsString}", "全部声道", "6ch, 2ch"],
+  ["${audioChannelsDot}", "默认声道点号格式", "5.1"],
+  ["${audioChannelDotList}", "全部点号声道数组", "[5.1, 2.0]"],
+  ["${audioChannelsDotAsString}", "全部点号声道", "5.1, 2.0"],
+  ["${audioLanguage}", "第一音轨语言", "ZH"],
+  ["${audioLanguageList}", "全部音轨语言数组", "[ZH, EN]"],
+  ["${audioLanguagesAsString}", "全部音轨语言", "ZH, EN"],
+  ["${subtitleLanguageList}", "字幕语言数组", "[ZH, EN]"],
+  ["${subtitleLanguagesAsString}", "字幕语言", "ZH, EN"],
+  ["${mediaSource}", "媒体来源", "WEB-DL"],
+  ["${3Dformat}", "3D 标记", ""],
+  ["${hdr}", "HDR", "HDR"],
+  ["${hdrformat}", "HDR 格式", "HDR10"],
+  ["${filesize}", "单集文件大小", "2.1 GB"],
+  ["${fileSize}", "单集文件大小", "2.1GB"],
+  ["${parent}", "数据源和剧集父目录之间的路径", "美剧"],
+  ["${showNote}", "电视剧备注", ""],
+  ["${note}", "单集备注", ""],
+  ["${showGenres[0]}", "电视剧第一个类型", "剧情"],
+  ["${showGenresAsString}", "电视剧全部类型", "剧情, 犯罪"],
+  ["${showGenres[0].name}", "电视剧第一个英文类型", "Drama"],
+  ["${showRating}", "电视剧评分", "8.9"],
+  ["${episodeRating}", "单集评分", "8.2"],
+  ["${showProductionCompany}", "电视剧制作公司", "AMC"],
+  ["${showProductionCompanyAsArray[0]}", "第一制作公司", "AMC"],
+  ["${showCertification}", "电视剧分级", "TV-MA"],
+  ["${crc32}", "CRC32", "A1B2C3D4"],
+];
+
+const DEFAULT_MOVIE_RENAMER_PATH = "${title} ${- ,edition,} (${year}) ${videoFormat} - ${fileSize}";
+const DEFAULT_MOVIE_RENAMER_FILE = "${title} ${- ,edition,} (${year}) ${videoFormat} ${audioCodec} ${fileSize}";
+const DEFAULT_TVSHOW_RENAMER_PATH = "${showTitle} (${showYear})";
+const DEFAULT_TVSHOW_RENAMER_SEASON = "Season ${seasonNr2}";
+const DEFAULT_TVSHOW_RENAMER_FILE = "${showTitle}.S${seasonNr2}E${episodeNr2}.${title}";
+
 createApp({
   data() {
     return {
@@ -8,13 +180,15 @@ createApp({
       selectedLibrary: null,
       items: [],
       selectedItem: null,
+      selectedItemIds: [],
+      lastSelectedTVItemId: "",
       candidates: [],
       scrapeSearch: {
         query: "",
         year: "",
       },
       rename: {
-        pattern: "{title} ({year}) {tmdb-{tmdbid}}",
+        pattern: DEFAULT_MOVIE_RENAMER_FILE,
         title: "",
         year: "",
         tmdbId: 0,
@@ -45,11 +219,37 @@ createApp({
         tvShowScrapeNfo: true,
         tvShowScrapeImages: true,
         tvShowScrapeOverwrite: false,
-        movieRenamerPathname: "{title} ({year})",
-        movieRenamerFilename: "{title} ({year})",
-        tvShowRenamerShowFolder: "{showTitle}",
-        tvShowRenamerSeason: "Season {seasonNr2}",
-        tvShowRenamerFilename: "{showTitle} - S{seasonNr2}E{episodeNr2} - {title}",
+        movieRenameAfterScrape: true,
+        tvShowRenameAfterScrape: true,
+        movieScraperFields: [],
+        tvShowScraperFields: [],
+        tvEpisodeScraperFields: [],
+        movieRenamerPathname: DEFAULT_MOVIE_RENAMER_PATH,
+        movieRenamerFilename: DEFAULT_MOVIE_RENAMER_FILE,
+        movieRenamerPathSpaceSubstitution: false,
+        movieRenamerPathSpaceReplacement: "_",
+        movieRenamerFilenameSpaceSubstitution: false,
+        movieRenamerFilenameSpaceReplacement: "_",
+        movieRenamerColonReplacement: "-",
+        movieRenamerAsciiReplacement: false,
+        movieRenamerFirstCharacterReplacement: "#",
+        movieRenamerCreateSingleMovieSet: false,
+        movieRenamerNfoCleanup: false,
+        movieRenamerCleanupUnwanted: false,
+        movieRenamerAllowMerge: false,
+        tvShowRenamerShowFolder: DEFAULT_TVSHOW_RENAMER_PATH,
+        tvShowRenamerSeason: DEFAULT_TVSHOW_RENAMER_SEASON,
+        tvShowRenamerFilename: DEFAULT_TVSHOW_RENAMER_FILE,
+        tvShowRenamerShowFolderSpaceSubstitution: false,
+        tvShowRenamerShowFolderSpaceReplacement: "_",
+        tvShowRenamerSeasonFolderSpaceSubstitution: false,
+        tvShowRenamerSeasonFolderSpaceReplacement: "_",
+        tvShowRenamerFilenameSpaceSubstitution: false,
+        tvShowRenamerFilenameSpaceReplacement: "_",
+        tvShowRenamerColonReplacement: " ",
+        tvShowRenamerAsciiReplacement: false,
+        tvShowRenamerFirstCharacterReplacement: "#",
+        tvShowRenamerCleanupUnwanted: false,
         moviePosterName: "poster.jpg",
         movieFanartName: "fanart.jpg",
         moviePosterNames: "poster.jpg\nfolder.jpg\n{filename}-poster.jpg",
@@ -79,10 +279,12 @@ createApp({
       layout: {
         browserWidth: 0,
         filterNavWidth: 180,
+        movieColumns: [210, 72, 72, 112, 64, 82],
+        tvColumns: [230, 72, 72, 112, 150],
         resizing: null,
       },
-      sortKey: "title",
-      sortDirection: "asc",
+      sortKey: "dateAdded",
+      sortDirection: "desc",
       detailTab: "info",
       selectedEntity: null,
       expandedShows: {},
@@ -93,6 +295,18 @@ createApp({
         y: 0,
         scope: "",
         payload: null,
+      },
+      localRename: {
+        open: false,
+        mode: "movie",
+        tab: "replace",
+        saving: false,
+        error: "",
+        replaceText: "",
+        replaceWith: "",
+        addPosition: "prefix",
+        addText: "",
+        rows: [],
       },
       chooser: {
         open: false,
@@ -123,6 +337,11 @@ createApp({
       poller: null,
       status: "正在初始化",
       busy: false,
+      DEFAULT_MOVIE_RENAMER_PATH,
+      DEFAULT_MOVIE_RENAMER_FILE,
+      DEFAULT_TVSHOW_RENAMER_PATH,
+      DEFAULT_TVSHOW_RENAMER_SEASON,
+      DEFAULT_TVSHOW_RENAMER_FILE,
     };
   },
   computed: {
@@ -134,6 +353,11 @@ createApp({
     },
     renamePreviewText() {
       if (!this.renamePreview) return "";
+      if (this.renamePreview.operations && this.renamePreview.operations.length) {
+        return this.renamePreview.operations
+          .map((op) => `${op.kind || "file"}:\n${op.source}\n=>\n${op.target}`)
+          .join("\n\n");
+      }
       return `文件:\n${this.renamePreview.sourceFile}\n=>\n${this.renamePreview.targetFile}\n\n目录:\n${this.renamePreview.sourceDir}\n=>\n${this.renamePreview.targetDir}`;
     },
     selectedTypeText() {
@@ -232,6 +456,16 @@ createApp({
         gridTemplateColumns: `${this.layout.filterNavWidth}px 6px minmax(0, 1fr)`,
       };
     },
+    movieGridStyle() {
+      return {
+        gridTemplateColumns: this.layout.movieColumns.map((width) => `${width}px`).join(" "),
+      };
+    },
+    tvGridStyle() {
+      return {
+        gridTemplateColumns: this.layout.tvColumns.map((width) => `${width}px`).join(" "),
+      };
+    },
     filterGroups() {
       const groups = [
         {
@@ -278,7 +512,7 @@ createApp({
           id: "video",
           label: "视频",
           filters: [
-            { id: "videoFormat", label: "视频格式", type: "choice", available: false },
+            { id: "videoFormat", label: "视频格式", type: "choice", available: true },
             { id: "videoCodec", label: "视频编码", type: "choice", available: false },
             { id: "videoBitrate", label: "视频码率", type: "number", available: false },
             { id: "videoBitdepth", label: "视频位深", type: "number", available: false },
@@ -286,14 +520,14 @@ createApp({
             { id: "aspectRatio", label: "宽高比", type: "choice", available: false },
             { id: "frameRate", label: "帧率", type: "number", available: false },
             { id: "hdrFormat", label: "HDR", type: "choice", available: false },
-            { id: "videoFilesize", label: "文件大小", type: "number", available: false },
+            { id: "videoFilesize", label: "文件大小(GB)", type: "number", available: true },
           ],
         },
         {
           id: "audio",
           label: "音频",
           filters: [
-            { id: "audioCodec", label: "音频编码", type: "choice", available: false },
+            { id: "audioCodec", label: "音频编码", type: "choice", available: true },
             { id: "audioChannels", label: "声道", type: "choice", available: false },
             { id: "audioLanguage", label: "音频语言", type: "choice", available: false },
             { id: "audioTitle", label: "音轨标题", type: "text", available: false },
@@ -354,6 +588,9 @@ createApp({
         { id: "year", label: "年份" },
         { id: "rating", label: "评分" },
         { id: "dateAdded", label: "添加日期" },
+        { id: "videoFilesize", label: "文件大小" },
+        { id: "videoFormat", label: "视频格式" },
+        { id: "audioCodec", label: "音频编码" },
         { id: "metadata", label: "元数据" },
         { id: "artwork", label: "图片" },
         { id: "datasource", label: "数据源" },
@@ -443,7 +680,19 @@ createApp({
     },
     selectedCountText() {
       if (!this.selectedItem) return "未选择";
+      if (this.activeModule === "tvshow" && this.selectedItemIds.length > 1) return `已选择 ${this.selectedItemIds.length} / ${this.visibleItems.length}`;
       return `已选择 1 / ${this.visibleItems.length}`;
+    },
+    localRenamePreviewRows() {
+      return this.localRename.rows.map((row) => ({
+        ...row,
+        previewName: this.localRenamePreviewName(row),
+      }));
+    },
+    localRenameCanApply() {
+      if (!this.localRename.open || this.localRename.saving || !this.localRename.rows.length) return false;
+      const rows = this.localRenamePreviewRows;
+      return rows.every((row) => row.previewName) && rows.some((row) => row.previewName !== row.fileName);
     },
     scanProgressText() {
       const task = this.selectedTask;
@@ -482,7 +731,11 @@ createApp({
           title: show.title,
           subtitle: `${show.seasons.length} 季 / ${show.episodes} 集`,
           year: first ? first.yearGuess : "",
+          rating: this.tvShowRating(show),
+          showMediaFields: false,
+          showRatingField: true,
           itemCount: show.episodes,
+          folderPath: first ? this.showRootPath(first) : "",
         });
       }
       if (this.selectedEntity && this.selectedEntity.kind === "season") {
@@ -493,8 +746,12 @@ createApp({
           title: `${season.showTitle || (first && first.showGuess) || ""} ${season.title}`.trim(),
           subtitle: `${season.items.length} 集`,
           year: first ? first.yearGuess : "",
+          rating: 0,
+          showMediaFields: false,
+          showRatingField: false,
           season: season.season,
           itemCount: season.items.length,
+          folderPath: first ? first.dir || this.showRootPath(first) : "",
         });
       }
       if (!this.selectedItem) return null;
@@ -503,6 +760,10 @@ createApp({
         title: this.selectedItem.kind === "tvshow" ? this.selectedItem.showGuess || this.selectedItem.titleGuess : this.selectedItem.titleGuess,
         subtitle: this.selectedItem.kind === "tvshow" ? this.itemSeasonText(this.selectedItem) : this.selectedItem.originalTitle || this.selectedItem.original || "",
         year: this.selectedItem.yearGuess,
+        rating: this.selectedItem.kind === "tvshow" ? this.tvEpisodeRating(this.selectedItem) : this.selectedItem.rating || 0,
+        showMediaFields: true,
+        showRatingField: true,
+        folderPath: this.selectedItem.dir || this.selectedItem.sourcePath || "",
       });
     },
   },
@@ -528,8 +789,21 @@ createApp({
     loadLayoutSettings() {
       const browserWidth = Number(localStorage.getItem("tmmweb.browserWidth") || 0);
       const filterNavWidth = Number(localStorage.getItem("tmmweb.filterNavWidth") || 0);
+      const movieColumns = this.loadColumnWidths("tmmweb.movieColumns", this.layout.movieColumns);
+      const tvColumns = this.loadColumnWidths("tmmweb.tvColumns", this.layout.tvColumns);
       if (browserWidth >= 420) this.layout.browserWidth = browserWidth;
       if (filterNavWidth >= 140) this.layout.filterNavWidth = filterNavWidth;
+      this.layout.movieColumns = movieColumns;
+      this.layout.tvColumns = tvColumns;
+    },
+    loadColumnWidths(key, fallback) {
+      try {
+        const values = JSON.parse(localStorage.getItem(key) || "[]");
+        if (!Array.isArray(values) || values.length !== fallback.length) return fallback.slice();
+        return values.map((value, index) => Math.max(this.minColumnWidth(index), Number(value) || fallback[index]));
+      } catch (_) {
+        return fallback.slice();
+      }
     },
     startWorkbenchResize(event) {
       const rect = this.$refs.workbench ? this.$refs.workbench.getBoundingClientRect() : null;
@@ -551,6 +825,17 @@ createApp({
       };
       event.preventDefault();
     },
+    startColumnResize(kind, index, event) {
+      const columns = kind === "movie" ? this.layout.movieColumns : this.layout.tvColumns;
+      this.layout.resizing = {
+        type: "column",
+        kind,
+        index,
+        startX: event.clientX,
+        startWidth: columns[index],
+      };
+      event.preventDefault();
+    },
     handleResizeMove(event) {
       const resizing = this.layout.resizing;
       if (!resizing) return;
@@ -563,12 +848,23 @@ createApp({
       if (resizing.type === "filterNav") {
         this.layout.filterNavWidth = Math.min(320, Math.max(140, resizing.startWidth + delta));
       }
+      if (resizing.type === "column") {
+        const key = resizing.kind === "movie" ? "movieColumns" : "tvColumns";
+        const columns = this.layout[key].slice();
+        columns[resizing.index] = Math.max(this.minColumnWidth(resizing.index), resizing.startWidth + delta);
+        this.layout[key] = columns;
+      }
     },
     stopResize() {
       if (!this.layout.resizing) return;
       if (this.layout.browserWidth) localStorage.setItem("tmmweb.browserWidth", String(Math.round(this.layout.browserWidth)));
       localStorage.setItem("tmmweb.filterNavWidth", String(Math.round(this.layout.filterNavWidth)));
+      localStorage.setItem("tmmweb.movieColumns", JSON.stringify(this.layout.movieColumns.map((value) => Math.round(value))));
+      localStorage.setItem("tmmweb.tvColumns", JSON.stringify(this.layout.tvColumns.map((value) => Math.round(value))));
       this.layout.resizing = null;
+    },
+    minColumnWidth(index) {
+      return index === 0 ? 140 : 56;
     },
     filterDefinition(id) {
       return this.filterDefinitions.get(id) || null;
@@ -670,8 +966,14 @@ createApp({
     filterValueOptions(filter) {
       if (filter.id === "datasource") return this.datasourceOptions;
       if (filter.id === "genre") return this.genreOptions;
+      if (filter.id === "videoFormat") return this.uniqueItemValues("videoFormat");
+      if (filter.id === "audioCodec") return this.uniqueItemValues("audioCodec");
       if (filter.id === "decade") return this.decadeOptions;
       return [];
+    },
+    uniqueItemValues(field) {
+      return [...new Set(this.items.map((item) => item[field]).filter(Boolean))]
+        .sort((a, b) => this.compareText(a, b));
     },
     filterAcceptsItem(filter, item, tvStats = null) {
       const definition = this.filterDefinition(filter.id);
@@ -693,7 +995,7 @@ createApp({
     filterFieldValue(id, item, tvStats = null) {
       switch (id) {
         case "allInOne":
-          return [item.titleGuess, item.showGuess, item.originalTitle || item.original, item.yearGuess, item.matchedName, item.fileName, item.path, item.imdbId, item.matchedId, ...(item.genres || [])].join(" ");
+          return [item.titleGuess, item.showGuess, item.originalTitle || item.original, item.yearGuess, item.matchedName, item.fileName, item.path, item.imdbId, item.matchedId, item.videoFormat, item.audioCodec, item.fileSize, ...(item.genres || [])].join(" ");
         case "title":
           return item.kind === "tvshow" ? item.showGuess || item.titleGuess : item.titleGuess;
         case "originalTitle":
@@ -716,6 +1018,12 @@ createApp({
           return Number(item.rating || 0);
         case "runtime":
           return Number(item.runtime || 0);
+        case "videoFormat":
+          return item.videoFormat || "";
+        case "audioCodec":
+          return item.audioCodec || "";
+        case "videoFilesize":
+          return Number(item.fileSizeBytes || 0) / (1024 * 1024 * 1024);
         case "genre":
           return item.genres || [];
         case "tmdbId":
@@ -832,8 +1140,23 @@ createApp({
       });
     },
     sortEpisodes(items) {
-      if (this.sortKey === "dateAdded" || this.sortKey === "rating" || this.sortKey === "year") return this.sortItems(items);
-      return items.sort((a, b) => (a.season || 0) - (b.season || 0) || (a.episode || 0) - (b.episode || 0) || this.compareText(a.fileName, b.fileName));
+      return items.sort((a, b) =>
+        (a.season || 0) - (b.season || 0) ||
+        (a.episode || 0) - (b.episode || 0) ||
+        this.compareEpisodeList(a.episodes, b.episodes) ||
+        this.compareText(a.fileName, b.fileName) ||
+        this.compareText(a.path, b.path)
+      );
+    },
+    compareEpisodeList(a = [], b = []) {
+      const left = Array.isArray(a) ? a : [];
+      const right = Array.isArray(b) ? b : [];
+      const length = Math.max(left.length, right.length);
+      for (let index = 0; index < length; index += 1) {
+        const result = Number(left[index] || 0) - Number(right[index] || 0);
+        if (result !== 0) return result;
+      }
+      return 0;
     },
     sortShows(shows) {
       const direction = this.sortDirection === "desc" ? -1 : 1;
@@ -847,13 +1170,15 @@ createApp({
       });
     },
     compareSortValue(a, b, key) {
-      if (["year", "rating", "runtime", "season", "episode"].includes(key)) {
+      if (["year", "rating", "runtime", "season", "episode", "videoFilesize"].includes(key)) {
         return Number(a[this.sortFieldName(key)] || 0) - Number(b[this.sortFieldName(key)] || 0);
       }
       if (key === "dateAdded") return this.compareDate(a.dateAdded, b.dateAdded);
       if (key === "metadata") return Number(!!a.hasNfo) - Number(!!b.hasNfo);
       if (key === "artwork") return this.artworkScore(a) - this.artworkScore(b);
       if (key === "datasource") return this.compareText(a.sourcePath, b.sourcePath);
+      if (key === "videoFormat") return this.compareText(a.videoFormat, b.videoFormat);
+      if (key === "audioCodec") return this.compareText(a.audioCodec, b.audioCodec);
       if (key === "originalTitle") return this.compareText(a.originalTitle || a.original, b.originalTitle || b.original);
       return this.compareText(a.kind === "tvshow" ? a.showGuess || a.titleGuess : a.titleGuess, b.kind === "tvshow" ? b.showGuess || b.titleGuess : b.titleGuess);
     },
@@ -863,6 +1188,7 @@ createApp({
       if (key === "runtime") return "runtime";
       if (key === "season") return "season";
       if (key === "episode") return "episode";
+      if (key === "videoFilesize") return "fileSizeBytes";
       return key;
     },
     compareText(a, b) {
@@ -883,34 +1209,63 @@ createApp({
       const rating = Number(value || 0);
       return rating > 0 ? rating.toFixed(1) : "-";
     },
-    artworkURL(item, type) {
-      if (!item || (type === "poster" && !item.hasPoster) || (type === "fanart" && !item.hasFanart)) return "";
-      return `/api/artwork?id=${encodeURIComponent(item.id)}&type=${encodeURIComponent(type)}&v=${encodeURIComponent(item.dateAdded || item.matchedId || "")}`;
+    tvEpisodeRating(item) {
+      if (!item || item.kind !== "tvshow") return Number(item?.rating || 0);
+      const rating = Number(item.rating || 0);
+      if (rating <= 0) return 0;
+      const showRating = Number(item.showRating || 0);
+      if (showRating > 0 && Math.abs(rating - showRating) < 0.05) return 0;
+      return rating;
+    },
+    tvShowRating(show) {
+      if (!show) return 0;
+      const items = show.items || [];
+      const withShowRating = items.find((item) => Number(item.showRating || 0) > 0);
+      if (withShowRating) return Number(withShowRating.showRating || 0);
+      const first = this.firstTVItem(show);
+      return first ? Number(first.showRating || 0) : 0;
+    },
+    artworkURL(item, type, entityType = "") {
+      if (!item) return "";
+      if (item.kind !== "tvshow" && ((type === "poster" && !item.hasPoster) || (type === "fanart" && !item.hasFanart))) return "";
+      const scope = item.kind === "tvshow" ? entityType || "episode" : "movie";
+      return `/api/artwork?id=${encodeURIComponent(item.id)}&type=${encodeURIComponent(type)}&scope=${encodeURIComponent(scope)}&v=${encodeURIComponent(item.dateAdded || item.matchedId || "")}`;
+    },
+    hideBrokenImage(event) {
+      if (event && event.target) event.target.style.display = "none";
     },
     buildSummary(item, overrides = {}) {
       const fallback = item || {};
+      const entityType = overrides.entityType || fallback.kind || "movie";
       return {
         item: fallback,
-        entityType: overrides.entityType || fallback.kind || "movie",
+        entityType,
         title: overrides.title || fallback.titleGuess || fallback.showGuess || "未命名",
         subtitle: overrides.subtitle || fallback.originalTitle || fallback.original || "",
         year: overrides.year || fallback.yearGuess || "",
         season: overrides.season || fallback.season || 0,
         itemCount: overrides.itemCount || 1,
-        poster: this.artworkURL(fallback, "poster"),
-        fanart: this.artworkURL(fallback, "fanart"),
-        rating: fallback.rating || 0,
+        poster: this.artworkURL(fallback, "poster", entityType),
+        fanart: this.artworkURL(fallback, "fanart", entityType),
+        rating: Object.prototype.hasOwnProperty.call(overrides, "rating") ? overrides.rating : fallback.rating || 0,
+        showMediaFields: Object.prototype.hasOwnProperty.call(overrides, "showMediaFields") ? overrides.showMediaFields : true,
+        showRatingField: Object.prototype.hasOwnProperty.call(overrides, "showRatingField") ? overrides.showRatingField : true,
         genres: fallback.genres || [],
         overview: fallback.overview || "",
         dateAdded: fallback.dateAdded || "",
         matchedName: fallback.matchedName || "",
         matchedId: fallback.matchedId || 0,
         imdbId: fallback.imdbId || "",
+        fileSize: fallback.fileSize || "",
+        fileSizeBytes: fallback.fileSizeBytes || 0,
+        videoFormat: fallback.videoFormat || "",
+        audioCodec: fallback.audioCodec || "",
         hasNfo: !!fallback.hasNfo,
         hasPoster: !!fallback.hasPoster,
         hasFanart: !!fallback.hasFanart,
         hasSubtitle: !!fallback.hasSubtitle,
         sourcePath: fallback.sourcePath || "",
+        folderPath: overrides.folderPath || fallback.dir || fallback.sourcePath || "",
       };
     },
     async api(path, options = {}) {
@@ -921,8 +1276,357 @@ createApp({
       if (!response.ok) throw new Error(await response.text());
       return response.json();
     },
+    fieldList(kind) {
+      return (TMM_SCRAPER_FIELDS[kind] || []).flatMap((group) => group.items.map((item) => item[0]));
+    },
+    fieldGroups(kind) {
+      return TMM_SCRAPER_FIELDS[kind] || [];
+    },
+    normalizeFieldList(values, kind) {
+      const allowed = this.fieldList(kind);
+      if (!Array.isArray(values)) return allowed.slice();
+      if (!values.length) return [];
+      const selected = values.filter((value) => allowed.includes(value));
+      return selected.length ? [...new Set(selected)] : [];
+    },
+    scraperFieldSetting(kind) {
+      if (kind === "movie") return "movieScraperFields";
+      if (kind === "episode") return "tvEpisodeScraperFields";
+      return "tvShowScraperFields";
+    },
+    scraperFields(kind) {
+      return this.scraperSettings[this.scraperFieldSetting(kind)] || [];
+    },
+    scraperFieldSelected(kind, key) {
+      return this.scraperFields(kind).includes(key);
+    },
+    toggleScraperField(kind, key, event) {
+      const setting = this.scraperFieldSetting(kind);
+      const selected = new Set(this.scraperSettings[setting] || []);
+      if (event.target.checked) selected.add(key);
+      else selected.delete(key);
+      this.scraperSettings[setting] = [...selected].filter((value) => this.fieldList(kind).includes(value));
+    },
+    selectAllScraperFields(kind) {
+      this.scraperSettings[this.scraperFieldSetting(kind)] = this.fieldList(kind);
+    },
+    clearScraperFields(kind) {
+      this.scraperSettings[this.scraperFieldSetting(kind)] = [];
+    },
+    renamerTokens() {
+      return TMM_RENAMER_TOKENS;
+    },
+    renamerTokenRows(kind) {
+      return kind === "tvshow" ? TV_RENAMER_TOKEN_ROWS : MOVIE_RENAMER_TOKEN_ROWS;
+    },
+    resetRenamerPattern(kind, field) {
+      const defaults = {
+        moviePath: DEFAULT_MOVIE_RENAMER_PATH,
+        movieFile: DEFAULT_MOVIE_RENAMER_FILE,
+        tvShow: DEFAULT_TVSHOW_RENAMER_PATH,
+        tvSeason: DEFAULT_TVSHOW_RENAMER_SEASON,
+        tvFile: DEFAULT_TVSHOW_RENAMER_FILE,
+      };
+      const setting = {
+        moviePath: "movieRenamerPathname",
+        movieFile: "movieRenamerFilename",
+        tvShow: "tvShowRenamerShowFolder",
+        tvSeason: "tvShowRenamerSeason",
+        tvFile: "tvShowRenamerFilename",
+      }[`${kind}${field}`];
+      const value = defaults[`${kind}${field}`];
+      if (setting && value) this.scraperSettings[setting] = value;
+    },
+    renameOptions(kind, segment) {
+      if (kind === "movie" && segment === "folder") {
+        return {
+          spaceSubstitution: !!this.scraperSettings.movieRenamerPathSpaceSubstitution,
+          spaceReplacement: this.scraperSettings.movieRenamerPathSpaceReplacement || "_",
+          colonReplacement: this.scraperSettings.movieRenamerColonReplacement || "-",
+          asciiReplacement: !!this.scraperSettings.movieRenamerAsciiReplacement,
+        };
+      }
+      if (kind === "movie") {
+        return {
+          spaceSubstitution: !!this.scraperSettings.movieRenamerFilenameSpaceSubstitution,
+          spaceReplacement: this.scraperSettings.movieRenamerFilenameSpaceReplacement || "_",
+          colonReplacement: this.scraperSettings.movieRenamerColonReplacement || "-",
+          asciiReplacement: !!this.scraperSettings.movieRenamerAsciiReplacement,
+        };
+      }
+      if (segment === "show") {
+        return {
+          spaceSubstitution: !!this.scraperSettings.tvShowRenamerShowFolderSpaceSubstitution,
+          spaceReplacement: this.scraperSettings.tvShowRenamerShowFolderSpaceReplacement || "_",
+          colonReplacement: this.scraperSettings.tvShowRenamerColonReplacement || " ",
+          asciiReplacement: !!this.scraperSettings.tvShowRenamerAsciiReplacement,
+        };
+      }
+      if (segment === "season") {
+        return {
+          spaceSubstitution: !!this.scraperSettings.tvShowRenamerSeasonFolderSpaceSubstitution,
+          spaceReplacement: this.scraperSettings.tvShowRenamerSeasonFolderSpaceReplacement || "_",
+          colonReplacement: this.scraperSettings.tvShowRenamerColonReplacement || " ",
+          asciiReplacement: !!this.scraperSettings.tvShowRenamerAsciiReplacement,
+        };
+      }
+      return {
+        spaceSubstitution: !!this.scraperSettings.tvShowRenamerFilenameSpaceSubstitution,
+        spaceReplacement: this.scraperSettings.tvShowRenamerFilenameSpaceReplacement || "_",
+        colonReplacement: this.scraperSettings.tvShowRenamerColonReplacement || " ",
+        asciiReplacement: !!this.scraperSettings.tvShowRenamerAsciiReplacement,
+      };
+    },
+    previewPattern(pattern, kind, segment = "file") {
+      const replacements = {
+        "{title}": "银翼杀手",
+        "${title}": "银翼杀手",
+        "{title[0]}": "银",
+        "${title[0]}": "银",
+        "{title;first}": this.firstCharacterToken("银翼杀手", this.scraperSettings.movieRenamerFirstCharacterReplacement),
+        "${title;first}": this.firstCharacterToken("银翼杀手", this.scraperSettings.movieRenamerFirstCharacterReplacement),
+        "{title[0,2]}": "银翼",
+        "${title[0,2]}": "银翼",
+        "{originalTitle}": "Blade Runner",
+        "${originalTitle}": "Blade Runner",
+        "{originalFilename}": "Blade.Runner.1982.1080p.DTS.mkv",
+        "${originalFilename}": "Blade.Runner.1982.1080p.DTS.mkv",
+        "{originalBasename}": "Blade.Runner.1982.1080p.DTS",
+        "${originalBasename}": "Blade.Runner.1982.1080p.DTS",
+        "{edition}": "Final Cut",
+        "${edition}": "Final Cut",
+        "${- ,edition,}": "- Final Cut",
+        "{year}": "1982",
+        "${year}": "1982",
+        "{releaseDate}": "1982-06-25",
+        "${releaseDate}": "1982-06-25",
+        "{rating}": "8.1",
+        "${rating}": "8.1",
+        "{imdb}": "tt0083658",
+        "${imdb}": "tt0083658",
+        "{tmdb}": "78",
+        "${tmdb}": "78",
+        "{tmdbid}": "78",
+        "${tmdbid}": "78",
+        "{videoFormat}": "1080p",
+        "${videoFormat}": "1080p",
+        "{audioCodec}": "DTS",
+        "${audioCodec}": "DTS",
+        "{fileSize}": "12.4GB",
+        "${fileSize}": "12.4GB",
+        "{filesize}": "12.4GB",
+        "${filesize}": "12.4GB",
+        "{showTitle}": "绝命毒师",
+        "${showTitle}": "绝命毒师",
+        "{showOriginalTitle}": "Breaking Bad",
+        "${showOriginalTitle}": "Breaking Bad",
+        "{showYear}": "2008",
+        "${showYear}": "2008",
+        "{seasonNr}": "1",
+        "${seasonNr}": "1",
+        "{seasonNr2}": "01",
+        "${seasonNr2}": "01",
+        "{episodeNr}": "1",
+        "${episodeNr}": "1",
+        "{episodeNr2}": "01",
+        "${episodeNr2}": "01",
+        "{aired}": "2008-01-20",
+        "${aired}": "2008-01-20",
+        "{airedDate}": "2008-01-20",
+        "${airedDate}": "2008-01-20",
+      };
+      if (kind === "tvshow") {
+        Object.assign(replacements, {
+          "{title}": "试播集",
+          "${title}": "试播集",
+          "{title[0]}": "试",
+          "${title[0]}": "试",
+          "{title;first}": this.firstCharacterToken("试播集", this.scraperSettings.tvShowRenamerFirstCharacterReplacement),
+          "${title;first}": this.firstCharacterToken("试播集", this.scraperSettings.tvShowRenamerFirstCharacterReplacement),
+          "{title[0,2]}": "试播",
+          "${title[0,2]}": "试播",
+          "{originalTitle}": "Pilot",
+          "${originalTitle}": "Pilot",
+          "{originalFilename}": "Breaking.Bad.S01E01.1080p.EAC3.mkv",
+          "${originalFilename}": "Breaking.Bad.S01E01.1080p.EAC3.mkv",
+          "{originalBasename}": "Breaking.Bad.S01E01.1080p.EAC3",
+          "${originalBasename}": "Breaking.Bad.S01E01.1080p.EAC3",
+          "{audioCodec}": "EAC3",
+          "${audioCodec}": "EAC3",
+          "{fileSize}": "2.1GB",
+          "${fileSize}": "2.1GB",
+          "{filesize}": "2.1GB",
+          "${filesize}": "2.1GB",
+        });
+      }
+      let value = pattern || (kind === "movie" ? DEFAULT_MOVIE_RENAMER_FILE : DEFAULT_TVSHOW_RENAMER_FILE);
+      Object.keys(replacements)
+        .sort((a, b) => b.length - a.length)
+        .forEach((key) => {
+          value = value.split(key).join(replacements[key]);
+        });
+      return this.cleanPreviewName(value, this.renameOptions(kind, segment));
+    },
+    cleanPreviewName(value, options = {}) {
+      let result = String(value || "").replace(/\$\{[^}]+\}/g, "");
+      const colonReplacement = options.colonReplacement === undefined || options.colonReplacement === null ? "-" : options.colonReplacement;
+      result = result.replace(/[:：]/g, colonReplacement);
+      result = result.replace(/[\\/]/g, " ").replace(/[*?"]/g, "").replace(/[<>]/g, "").replace(/\|/g, " ");
+      if (options.asciiReplacement) {
+        result = result.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^\x00-\x7F]/g, "");
+      }
+      result = result.replace(/\s+/g, " ").replace(/\( \)/g, "").replace(/\[ \]/g, "").replace(/[ ._-]+$/g, "").trim();
+      if (options.spaceSubstitution) {
+        const replacement = options.spaceReplacement || "_";
+        const escaped = replacement.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        result = result.replace(/ /g, replacement).replace(new RegExp(`${escaped}+`, "g"), replacement).replace(/[ ._-]+$/g, "").trim();
+      }
+      return result;
+    },
+    firstCharacterToken(value, replacement) {
+      const text = String(value || "").trim();
+      if (!text) return "";
+      const first = [...text][0];
+      if (/^\p{L}$/u.test(first)) return first;
+      return String(replacement || "#").trim() || "#";
+    },
+    movieRenamerExample() {
+      return {
+        movie: "银翼杀手",
+        datasource: "/media/movies",
+        folder: this.previewPattern(this.scraperSettings.movieRenamerPathname, "movie", "folder"),
+        filename: `${this.previewPattern(this.scraperSettings.movieRenamerFilename, "movie", "file")}.mkv`,
+      };
+    },
+    tvRenamerExample() {
+      const show = this.previewPattern(this.scraperSettings.tvShowRenamerShowFolder, "tvshow", "show");
+      const season = this.previewPattern(this.scraperSettings.tvShowRenamerSeason, "tvshow", "season");
+      return {
+        show: "绝命毒师",
+        episode: "1.1 试播集",
+        datasource: "/media/tv",
+        folder: `${show}/${season}`,
+        filename: `${this.previewPattern(this.scraperSettings.tvShowRenamerFilename, "tvshow", "file")}.mkv`,
+      };
+    },
+    applySettings(settings) {
+      this.scraperSettings.tmdbConfigured = !!settings.tmdbConfigured;
+      this.scraperSettings.tmdbKeySource = settings.tmdbKeySource || "none";
+      this.scraperSettings.proxyEnabled = !!settings.proxyEnabled;
+      this.scraperSettings.proxyHost = settings.proxyHost || "";
+      this.scraperSettings.proxyPort = settings.proxyPort || 7890;
+      this.scraperSettings.proxyUsername = settings.proxyUsername || "";
+      this.scraperSettings.proxyPasswordConfigured = !!settings.proxyPassword;
+      this.scraperSettings.movieScrapeMetadata = settings.movieScrapeMetadata !== false;
+      this.scraperSettings.movieScrapeNfo = settings.movieScrapeNfo !== false;
+      this.scraperSettings.movieScrapeImages = settings.movieScrapeImages !== false;
+      this.scraperSettings.movieScrapeOverwrite = !!settings.movieScrapeOverwrite;
+      this.scraperSettings.tvShowScrapeMetadata = settings.tvShowScrapeMetadata !== false;
+      this.scraperSettings.tvShowEpisodeMetadata = settings.tvShowEpisodeMetadata !== false;
+      this.scraperSettings.tvShowScrapeNfo = settings.tvShowScrapeNfo !== false;
+      this.scraperSettings.tvShowScrapeImages = settings.tvShowScrapeImages !== false;
+      this.scraperSettings.tvShowScrapeOverwrite = !!settings.tvShowScrapeOverwrite;
+      this.scraperSettings.movieRenameAfterScrape = !!settings.movieRenameAfterScrape;
+      this.scraperSettings.tvShowRenameAfterScrape = !!settings.tvShowRenameAfterScrape;
+      this.scraperSettings.movieScraperFields = this.normalizeFieldList(settings.movieScraperFields, "movie");
+      this.scraperSettings.tvShowScraperFields = this.normalizeFieldList(settings.tvShowScraperFields, "tvshow");
+      this.scraperSettings.tvEpisodeScraperFields = this.normalizeFieldList(settings.tvEpisodeScraperFields, "episode");
+      this.scraperSettings.movieRenamerPathname = settings.movieRenamerPathname || DEFAULT_MOVIE_RENAMER_PATH;
+      this.scraperSettings.movieRenamerFilename = settings.movieRenamerFilename || DEFAULT_MOVIE_RENAMER_FILE;
+      this.scraperSettings.movieRenamerPathSpaceSubstitution = !!settings.movieRenamerPathSpaceSubstitution;
+      this.scraperSettings.movieRenamerPathSpaceReplacement = settings.movieRenamerPathSpaceReplacement || "_";
+      this.scraperSettings.movieRenamerFilenameSpaceSubstitution = !!settings.movieRenamerFilenameSpaceSubstitution;
+      this.scraperSettings.movieRenamerFilenameSpaceReplacement = settings.movieRenamerFilenameSpaceReplacement || "_";
+      this.scraperSettings.movieRenamerColonReplacement = settings.movieRenamerColonReplacement || "-";
+      this.scraperSettings.movieRenamerAsciiReplacement = !!settings.movieRenamerAsciiReplacement;
+      this.scraperSettings.movieRenamerFirstCharacterReplacement = settings.movieRenamerFirstCharacterReplacement || "#";
+      this.scraperSettings.movieRenamerCreateSingleMovieSet = !!settings.movieRenamerCreateSingleMovieSet;
+      this.scraperSettings.movieRenamerNfoCleanup = !!settings.movieRenamerNfoCleanup;
+      this.scraperSettings.movieRenamerCleanupUnwanted = !!settings.movieRenamerCleanupUnwanted;
+      this.scraperSettings.movieRenamerAllowMerge = !!settings.movieRenamerAllowMerge;
+      this.scraperSettings.tvShowRenamerShowFolder = settings.tvShowRenamerShowFolder || DEFAULT_TVSHOW_RENAMER_PATH;
+      this.scraperSettings.tvShowRenamerSeason = settings.tvShowRenamerSeason || DEFAULT_TVSHOW_RENAMER_SEASON;
+      this.scraperSettings.tvShowRenamerFilename = settings.tvShowRenamerFilename || DEFAULT_TVSHOW_RENAMER_FILE;
+      this.scraperSettings.tvShowRenamerShowFolderSpaceSubstitution = !!settings.tvShowRenamerShowFolderSpaceSubstitution;
+      this.scraperSettings.tvShowRenamerShowFolderSpaceReplacement = settings.tvShowRenamerShowFolderSpaceReplacement || "_";
+      this.scraperSettings.tvShowRenamerSeasonFolderSpaceSubstitution = !!settings.tvShowRenamerSeasonFolderSpaceSubstitution;
+      this.scraperSettings.tvShowRenamerSeasonFolderSpaceReplacement = settings.tvShowRenamerSeasonFolderSpaceReplacement || "_";
+      this.scraperSettings.tvShowRenamerFilenameSpaceSubstitution = !!settings.tvShowRenamerFilenameSpaceSubstitution;
+      this.scraperSettings.tvShowRenamerFilenameSpaceReplacement = settings.tvShowRenamerFilenameSpaceReplacement || "_";
+      this.scraperSettings.tvShowRenamerColonReplacement = settings.tvShowRenamerColonReplacement || " ";
+      this.scraperSettings.tvShowRenamerAsciiReplacement = !!settings.tvShowRenamerAsciiReplacement;
+      this.scraperSettings.tvShowRenamerFirstCharacterReplacement = settings.tvShowRenamerFirstCharacterReplacement || "#";
+      this.scraperSettings.tvShowRenamerCleanupUnwanted = !!settings.tvShowRenamerCleanupUnwanted;
+      this.scraperSettings.moviePosterName = settings.moviePosterName || "poster.jpg";
+      this.scraperSettings.movieFanartName = settings.movieFanartName || "fanart.jpg";
+      this.scraperSettings.moviePosterNames = settings.moviePosterNames || "poster.jpg\nfolder.jpg\n{filename}-poster.jpg";
+      this.scraperSettings.movieFanartNames = settings.movieFanartNames || "fanart.jpg\n{filename}-fanart.jpg";
+      this.scraperSettings.tvShowPosterName = settings.tvShowPosterName || "poster.jpg";
+      this.scraperSettings.tvShowFanartName = settings.tvShowFanartName || "fanart.jpg";
+      this.scraperSettings.tvShowPosterNames = settings.tvShowPosterNames || "poster.jpg\nfolder.jpg";
+      this.scraperSettings.tvShowFanartNames = settings.tvShowFanartNames || "fanart.jpg\nbackdrop.jpg";
+    },
+    settingsPayload(extra = {}) {
+      return {
+        ...extra,
+        proxyEnabled: this.scraperSettings.proxyEnabled,
+        proxyHost: this.scraperSettings.proxyHost,
+        proxyPort: Number(this.scraperSettings.proxyPort) || 0,
+        proxyUsername: this.scraperSettings.proxyUsername,
+        clearProxyPassword: this.scraperSettings.clearProxyPassword,
+        movieScrapeMetadata: !!this.scraperSettings.movieScrapeMetadata,
+        movieScrapeNfo: !!this.scraperSettings.movieScrapeNfo,
+        movieScrapeImages: !!this.scraperSettings.movieScrapeImages,
+        movieScrapeOverwrite: !!this.scraperSettings.movieScrapeOverwrite,
+        tvShowScrapeMetadata: !!this.scraperSettings.tvShowScrapeMetadata,
+        tvShowEpisodeMetadata: !!this.scraperSettings.tvShowEpisodeMetadata,
+        tvShowScrapeNfo: !!this.scraperSettings.tvShowScrapeNfo,
+        tvShowScrapeImages: !!this.scraperSettings.tvShowScrapeImages,
+        tvShowScrapeOverwrite: !!this.scraperSettings.tvShowScrapeOverwrite,
+        movieRenameAfterScrape: !!this.scraperSettings.movieRenameAfterScrape,
+        tvShowRenameAfterScrape: !!this.scraperSettings.tvShowRenameAfterScrape,
+        movieScraperFields: this.scraperSettings.movieScraperFields,
+        tvShowScraperFields: this.scraperSettings.tvShowScraperFields,
+        tvEpisodeScraperFields: this.scraperSettings.tvEpisodeScraperFields,
+        movieRenamerPathname: this.scraperSettings.movieRenamerPathname,
+        movieRenamerFilename: this.scraperSettings.movieRenamerFilename,
+        movieRenamerPathSpaceSubstitution: !!this.scraperSettings.movieRenamerPathSpaceSubstitution,
+        movieRenamerPathSpaceReplacement: this.scraperSettings.movieRenamerPathSpaceReplacement,
+        movieRenamerFilenameSpaceSubstitution: !!this.scraperSettings.movieRenamerFilenameSpaceSubstitution,
+        movieRenamerFilenameSpaceReplacement: this.scraperSettings.movieRenamerFilenameSpaceReplacement,
+        movieRenamerColonReplacement: this.scraperSettings.movieRenamerColonReplacement,
+        movieRenamerAsciiReplacement: !!this.scraperSettings.movieRenamerAsciiReplacement,
+        movieRenamerFirstCharacterReplacement: this.scraperSettings.movieRenamerFirstCharacterReplacement,
+        movieRenamerCreateSingleMovieSet: !!this.scraperSettings.movieRenamerCreateSingleMovieSet,
+        movieRenamerNfoCleanup: !!this.scraperSettings.movieRenamerNfoCleanup,
+        movieRenamerCleanupUnwanted: !!this.scraperSettings.movieRenamerCleanupUnwanted,
+        movieRenamerAllowMerge: !!this.scraperSettings.movieRenamerAllowMerge,
+        tvShowRenamerShowFolder: this.scraperSettings.tvShowRenamerShowFolder,
+        tvShowRenamerSeason: this.scraperSettings.tvShowRenamerSeason,
+        tvShowRenamerFilename: this.scraperSettings.tvShowRenamerFilename,
+        tvShowRenamerShowFolderSpaceSubstitution: !!this.scraperSettings.tvShowRenamerShowFolderSpaceSubstitution,
+        tvShowRenamerShowFolderSpaceReplacement: this.scraperSettings.tvShowRenamerShowFolderSpaceReplacement,
+        tvShowRenamerSeasonFolderSpaceSubstitution: !!this.scraperSettings.tvShowRenamerSeasonFolderSpaceSubstitution,
+        tvShowRenamerSeasonFolderSpaceReplacement: this.scraperSettings.tvShowRenamerSeasonFolderSpaceReplacement,
+        tvShowRenamerFilenameSpaceSubstitution: !!this.scraperSettings.tvShowRenamerFilenameSpaceSubstitution,
+        tvShowRenamerFilenameSpaceReplacement: this.scraperSettings.tvShowRenamerFilenameSpaceReplacement,
+        tvShowRenamerColonReplacement: this.scraperSettings.tvShowRenamerColonReplacement,
+        tvShowRenamerAsciiReplacement: !!this.scraperSettings.tvShowRenamerAsciiReplacement,
+        tvShowRenamerFirstCharacterReplacement: this.scraperSettings.tvShowRenamerFirstCharacterReplacement,
+        tvShowRenamerCleanupUnwanted: !!this.scraperSettings.tvShowRenamerCleanupUnwanted,
+        moviePosterName: this.scraperSettings.moviePosterName,
+        movieFanartName: this.scraperSettings.movieFanartName,
+        moviePosterNames: this.scraperSettings.moviePosterNames,
+        movieFanartNames: this.scraperSettings.movieFanartNames,
+        tvShowPosterName: this.scraperSettings.tvShowPosterName,
+        tvShowFanartName: this.scraperSettings.tvShowFanartName,
+        tvShowPosterNames: this.scraperSettings.tvShowPosterNames,
+        tvShowFanartNames: this.scraperSettings.tvShowFanartNames,
+      };
+    },
     async loadLibraries() {
-      this.libraries = await this.api("/api/libraries");
+      const libraries = await this.api("/api/libraries");
+      this.libraries = Array.isArray(libraries) ? libraries : [];
       if (this.libraries.length && !this.selectedLibrary) {
         const first = this.filteredLibraries[0] || this.libraries[0];
         this.activeModule = first.type || "movie";
@@ -932,37 +1636,9 @@ createApp({
     async loadSettings() {
       try {
         const settings = await this.api("/api/settings");
-        this.scraperSettings.tmdbConfigured = !!settings.tmdbConfigured;
-        this.scraperSettings.tmdbKeySource = settings.tmdbKeySource || "none";
-        this.scraperSettings.proxyEnabled = !!settings.proxyEnabled;
-        this.scraperSettings.proxyHost = settings.proxyHost || "";
-        this.scraperSettings.proxyPort = settings.proxyPort || 7890;
-        this.scraperSettings.proxyUsername = settings.proxyUsername || "";
+        this.applySettings(settings);
         this.scraperSettings.proxyPassword = "";
-        this.scraperSettings.proxyPasswordConfigured = !!settings.proxyPassword;
         this.scraperSettings.clearProxyPassword = false;
-        this.scraperSettings.movieScrapeMetadata = settings.movieScrapeMetadata !== false;
-        this.scraperSettings.movieScrapeNfo = settings.movieScrapeNfo !== false;
-        this.scraperSettings.movieScrapeImages = settings.movieScrapeImages !== false;
-        this.scraperSettings.movieScrapeOverwrite = !!settings.movieScrapeOverwrite;
-        this.scraperSettings.tvShowScrapeMetadata = settings.tvShowScrapeMetadata !== false;
-        this.scraperSettings.tvShowEpisodeMetadata = settings.tvShowEpisodeMetadata !== false;
-        this.scraperSettings.tvShowScrapeNfo = settings.tvShowScrapeNfo !== false;
-        this.scraperSettings.tvShowScrapeImages = settings.tvShowScrapeImages !== false;
-        this.scraperSettings.tvShowScrapeOverwrite = !!settings.tvShowScrapeOverwrite;
-        this.scraperSettings.movieRenamerPathname = settings.movieRenamerPathname || "{title} ({year})";
-        this.scraperSettings.movieRenamerFilename = settings.movieRenamerFilename || "{title} ({year})";
-        this.scraperSettings.tvShowRenamerShowFolder = settings.tvShowRenamerShowFolder || "{showTitle}";
-        this.scraperSettings.tvShowRenamerSeason = settings.tvShowRenamerSeason || "Season {seasonNr2}";
-        this.scraperSettings.tvShowRenamerFilename = settings.tvShowRenamerFilename || "{showTitle} - S{seasonNr2}E{episodeNr2} - {title}";
-        this.scraperSettings.moviePosterName = settings.moviePosterName || "poster.jpg";
-        this.scraperSettings.movieFanartName = settings.movieFanartName || "fanart.jpg";
-        this.scraperSettings.moviePosterNames = settings.moviePosterNames || "poster.jpg\nfolder.jpg\n{filename}-poster.jpg";
-        this.scraperSettings.movieFanartNames = settings.movieFanartNames || "fanart.jpg\n{filename}-fanart.jpg";
-        this.scraperSettings.tvShowPosterName = settings.tvShowPosterName || "poster.jpg";
-        this.scraperSettings.tvShowFanartName = settings.tvShowFanartName || "fanart.jpg";
-        this.scraperSettings.tvShowPosterNames = settings.tvShowPosterNames || "poster.jpg\nfolder.jpg";
-        this.scraperSettings.tvShowFanartNames = settings.tvShowFanartNames || "fanart.jpg\nbackdrop.jpg";
       } catch (error) {
         this.status = error.message;
       }
@@ -1001,70 +1677,14 @@ createApp({
       this.scraperSettings.saving = true;
       this.status = "正在保存设置";
       try {
-        const body = {
-          proxyEnabled: this.scraperSettings.proxyEnabled,
-          proxyHost: this.scraperSettings.proxyHost,
-          proxyPort: Number(this.scraperSettings.proxyPort) || 0,
-          proxyUsername: this.scraperSettings.proxyUsername,
-          clearProxyPassword: this.scraperSettings.clearProxyPassword,
-          movieScrapeMetadata: !!this.scraperSettings.movieScrapeMetadata,
-          movieScrapeNfo: !!this.scraperSettings.movieScrapeNfo,
-          movieScrapeImages: !!this.scraperSettings.movieScrapeImages,
-          movieScrapeOverwrite: !!this.scraperSettings.movieScrapeOverwrite,
-          tvShowScrapeMetadata: !!this.scraperSettings.tvShowScrapeMetadata,
-          tvShowEpisodeMetadata: !!this.scraperSettings.tvShowEpisodeMetadata,
-          tvShowScrapeNfo: !!this.scraperSettings.tvShowScrapeNfo,
-          tvShowScrapeImages: !!this.scraperSettings.tvShowScrapeImages,
-          tvShowScrapeOverwrite: !!this.scraperSettings.tvShowScrapeOverwrite,
-          movieRenamerPathname: this.scraperSettings.movieRenamerPathname,
-          movieRenamerFilename: this.scraperSettings.movieRenamerFilename,
-          tvShowRenamerShowFolder: this.scraperSettings.tvShowRenamerShowFolder,
-          tvShowRenamerSeason: this.scraperSettings.tvShowRenamerSeason,
-          tvShowRenamerFilename: this.scraperSettings.tvShowRenamerFilename,
-          moviePosterName: this.scraperSettings.moviePosterName,
-          movieFanartName: this.scraperSettings.movieFanartName,
-          moviePosterNames: this.scraperSettings.moviePosterNames,
-          movieFanartNames: this.scraperSettings.movieFanartNames,
-          tvShowPosterName: this.scraperSettings.tvShowPosterName,
-          tvShowFanartName: this.scraperSettings.tvShowFanartName,
-          tvShowPosterNames: this.scraperSettings.tvShowPosterNames,
-          tvShowFanartNames: this.scraperSettings.tvShowFanartNames,
-        };
+        const body = this.settingsPayload();
         if (this.scraperSettings.tmdbApiKey) body.tmdbApiKey = this.scraperSettings.tmdbApiKey;
         if (this.scraperSettings.proxyPassword) body.proxyPassword = this.scraperSettings.proxyPassword;
         const settings = await this.api("/api/settings", {
           method: "PUT",
           body: JSON.stringify(body),
         });
-        this.scraperSettings.tmdbConfigured = !!settings.tmdbConfigured;
-        this.scraperSettings.tmdbKeySource = settings.tmdbKeySource || "none";
-        this.scraperSettings.proxyEnabled = !!settings.proxyEnabled;
-        this.scraperSettings.proxyHost = settings.proxyHost || "";
-        this.scraperSettings.proxyPort = settings.proxyPort || 7890;
-        this.scraperSettings.proxyUsername = settings.proxyUsername || "";
-        this.scraperSettings.proxyPasswordConfigured = !!settings.proxyPassword;
-        this.scraperSettings.movieScrapeMetadata = settings.movieScrapeMetadata !== false;
-        this.scraperSettings.movieScrapeNfo = settings.movieScrapeNfo !== false;
-        this.scraperSettings.movieScrapeImages = settings.movieScrapeImages !== false;
-        this.scraperSettings.movieScrapeOverwrite = !!settings.movieScrapeOverwrite;
-        this.scraperSettings.tvShowScrapeMetadata = settings.tvShowScrapeMetadata !== false;
-        this.scraperSettings.tvShowEpisodeMetadata = settings.tvShowEpisodeMetadata !== false;
-        this.scraperSettings.tvShowScrapeNfo = settings.tvShowScrapeNfo !== false;
-        this.scraperSettings.tvShowScrapeImages = settings.tvShowScrapeImages !== false;
-        this.scraperSettings.tvShowScrapeOverwrite = !!settings.tvShowScrapeOverwrite;
-        this.scraperSettings.movieRenamerPathname = settings.movieRenamerPathname || this.scraperSettings.movieRenamerPathname;
-        this.scraperSettings.movieRenamerFilename = settings.movieRenamerFilename || this.scraperSettings.movieRenamerFilename;
-        this.scraperSettings.tvShowRenamerShowFolder = settings.tvShowRenamerShowFolder || this.scraperSettings.tvShowRenamerShowFolder;
-        this.scraperSettings.tvShowRenamerSeason = settings.tvShowRenamerSeason || this.scraperSettings.tvShowRenamerSeason;
-        this.scraperSettings.tvShowRenamerFilename = settings.tvShowRenamerFilename || this.scraperSettings.tvShowRenamerFilename;
-        this.scraperSettings.moviePosterName = settings.moviePosterName || this.scraperSettings.moviePosterName;
-        this.scraperSettings.movieFanartName = settings.movieFanartName || this.scraperSettings.movieFanartName;
-        this.scraperSettings.moviePosterNames = settings.moviePosterNames || this.scraperSettings.moviePosterNames;
-        this.scraperSettings.movieFanartNames = settings.movieFanartNames || this.scraperSettings.movieFanartNames;
-        this.scraperSettings.tvShowPosterName = settings.tvShowPosterName || this.scraperSettings.tvShowPosterName;
-        this.scraperSettings.tvShowFanartName = settings.tvShowFanartName || this.scraperSettings.tvShowFanartName;
-        this.scraperSettings.tvShowPosterNames = settings.tvShowPosterNames || this.scraperSettings.tvShowPosterNames;
-        this.scraperSettings.tvShowFanartNames = settings.tvShowFanartNames || this.scraperSettings.tvShowFanartNames;
+        this.applySettings(settings);
         this.scraperSettings.tmdbApiKey = "";
         this.scraperSettings.proxyPassword = "";
         this.scraperSettings.clearProxyPassword = false;
@@ -1088,39 +1708,12 @@ createApp({
       try {
         const settings = await this.api("/api/settings", {
           method: "PUT",
-          body: JSON.stringify({
+          body: JSON.stringify(this.settingsPayload({
             clearTmdbKey: true,
-            proxyEnabled: this.scraperSettings.proxyEnabled,
-            proxyHost: this.scraperSettings.proxyHost,
-            proxyPort: Number(this.scraperSettings.proxyPort) || 0,
-            proxyUsername: this.scraperSettings.proxyUsername,
             clearProxyPassword: false,
-            movieScrapeMetadata: !!this.scraperSettings.movieScrapeMetadata,
-            movieScrapeNfo: !!this.scraperSettings.movieScrapeNfo,
-            movieScrapeImages: !!this.scraperSettings.movieScrapeImages,
-            movieScrapeOverwrite: !!this.scraperSettings.movieScrapeOverwrite,
-            tvShowScrapeMetadata: !!this.scraperSettings.tvShowScrapeMetadata,
-            tvShowEpisodeMetadata: !!this.scraperSettings.tvShowEpisodeMetadata,
-            tvShowScrapeNfo: !!this.scraperSettings.tvShowScrapeNfo,
-            tvShowScrapeImages: !!this.scraperSettings.tvShowScrapeImages,
-            tvShowScrapeOverwrite: !!this.scraperSettings.tvShowScrapeOverwrite,
-            movieRenamerPathname: this.scraperSettings.movieRenamerPathname,
-            movieRenamerFilename: this.scraperSettings.movieRenamerFilename,
-            tvShowRenamerShowFolder: this.scraperSettings.tvShowRenamerShowFolder,
-            tvShowRenamerSeason: this.scraperSettings.tvShowRenamerSeason,
-            tvShowRenamerFilename: this.scraperSettings.tvShowRenamerFilename,
-            moviePosterName: this.scraperSettings.moviePosterName,
-            movieFanartName: this.scraperSettings.movieFanartName,
-            moviePosterNames: this.scraperSettings.moviePosterNames,
-            movieFanartNames: this.scraperSettings.movieFanartNames,
-            tvShowPosterName: this.scraperSettings.tvShowPosterName,
-            tvShowFanartName: this.scraperSettings.tvShowFanartName,
-            tvShowPosterNames: this.scraperSettings.tvShowPosterNames,
-            tvShowFanartNames: this.scraperSettings.tvShowFanartNames,
-          }),
+          })),
         });
-        this.scraperSettings.tmdbConfigured = !!settings.tmdbConfigured;
-        this.scraperSettings.tmdbKeySource = settings.tmdbKeySource || "none";
+        this.applySettings(settings);
         this.scraperSettings.tmdbApiKey = "";
         this.status = "TMDb Key 已清除";
       } catch (error) {
@@ -1135,8 +1728,10 @@ createApp({
       this.newLibrary.name = module === "tvshow" ? "电视剧" : "电影";
       this.query = "";
       this.filters = [];
-      this.sortKey = "title";
-      this.sortDirection = "asc";
+      this.sortKey = "dateAdded";
+      this.sortDirection = "desc";
+      this.selectedItemIds = [];
+      this.lastSelectedTVItemId = "";
       const first = this.filteredLibraries[0];
       if (first) {
         await this.selectLibrary(first);
@@ -1144,6 +1739,8 @@ createApp({
         this.selectedLibrary = null;
         this.items = [];
         this.selectedItem = null;
+        this.selectedItemIds = [];
+        this.lastSelectedTVItemId = "";
         this.selectedEntity = null;
         this.status = `未配置${this.moduleTitle}数据源`;
       }
@@ -1161,8 +1758,12 @@ createApp({
       this.newLibrary.paths = this.newLibrary.paths.filter((item) => item !== path);
     },
     prepareDatasource(type) {
+      const previousType = this.newLibrary.type;
+      const defaultNames = new Set(["电影", "电视剧"]);
       this.newLibrary.type = type;
-      this.newLibrary.name = type === "tvshow" ? "电视剧" : "电影";
+      if (!this.newLibrary.name || (previousType !== type && defaultNames.has(this.newLibrary.name))) {
+        this.newLibrary.name = type === "tvshow" ? "电视剧" : "电影";
+      }
     },
     async browseDatasource(type) {
       this.prepareDatasource(type);
@@ -1236,6 +1837,8 @@ createApp({
             this.selectedLibrary = null;
             this.items = [];
             this.selectedItem = null;
+            this.selectedItemIds = [];
+            this.lastSelectedTVItemId = "";
           }
         }
         this.status = "数据源已移除";
@@ -1251,6 +1854,8 @@ createApp({
       this.selectedLibrary = library;
       this.items = [];
       this.selectedItem = null;
+      this.selectedItemIds = [];
+      this.lastSelectedTVItemId = "";
       this.selectedEntity = null;
       this.candidates = [];
       this.renamePreview = null;
@@ -1288,9 +1893,17 @@ createApp({
         this.busy = true;
         this.status = `正在加载 ${library.name}`;
       }
+      const scrollAnchor = quiet ? this.captureMediaScrollAnchor() : null;
       try {
         const result = await this.api(`/api/items?libraryId=${encodeURIComponent(library.id)}`);
-        this.items = result.items || [];
+        const loadedItems = result.items || [];
+        this.items = quiet && this.selectedTask && this.selectedTask.state === "running"
+          ? this.mergeLoadedItems(this.items, loadedItems)
+          : loadedItems;
+        if (scrollAnchor) {
+          await this.$nextTick();
+          this.restoreMediaScrollAnchor(scrollAnchor);
+        }
         if (!quiet) {
           this.status = this.items.length ? `已加载 ${this.items.length} 个缓存条目` : `已选择 ${library.name}，需要扫描`;
         }
@@ -1300,7 +1913,67 @@ createApp({
         if (!quiet) this.busy = false;
       }
     },
-    selectItem(item) {
+    mergeLoadedItems(currentItems, loadedItems) {
+      const loadedByID = new Map(loadedItems.map((item) => [item.id, item]));
+      const merged = currentItems
+        .filter((item) => loadedByID.has(item.id))
+        .map((item) => loadedByID.get(item.id));
+      const existingIDs = new Set(merged.map((item) => item.id));
+      for (const item of loadedItems) {
+        if (!existingIDs.has(item.id)) merged.push(item);
+      }
+      return merged;
+    },
+    mediaScrollElement() {
+      const ref = this.$refs.mediaScroller;
+      return Array.isArray(ref) ? ref.find(Boolean) : ref;
+    },
+    captureMediaScrollAnchor() {
+      const scroller = this.mediaScrollElement();
+      if (!scroller) return null;
+      const scrollTop = scroller.scrollTop;
+      const rows = scroller.querySelectorAll("[data-row-key]");
+      for (const row of rows) {
+        if (row.offsetTop + row.offsetHeight >= scrollTop) {
+          return {
+            key: row.dataset.rowKey,
+            offset: row.offsetTop - scrollTop,
+            scrollTop,
+          };
+        }
+      }
+      return { scrollTop };
+    },
+    restoreMediaScrollAnchor(anchor) {
+      const scroller = this.mediaScrollElement();
+      if (!scroller || !anchor) return;
+      if (anchor.key) {
+        const escapedKey = window.CSS && CSS.escape ? CSS.escape(anchor.key) : anchor.key.replace(/["\\]/g, "\\$&");
+        const row = scroller.querySelector(`[data-row-key="${escapedKey}"]`);
+        if (row) {
+          scroller.scrollTop = Math.max(0, row.offsetTop - anchor.offset);
+          return;
+        }
+      }
+      scroller.scrollTop = anchor.scrollTop || 0;
+    },
+    selectItem(item, event = null) {
+      const isTV = item.kind === "tvshow";
+      const rangeSelect = isTV && event && event.shiftKey;
+      const multiToggle = isTV && event && (event.metaKey || event.ctrlKey);
+      if (rangeSelect) {
+        const range = this.tvSelectionRange(item.id);
+        this.selectedItemIds = range.length ? range : [item.id];
+      } else if (multiToggle) {
+        const selected = new Set(this.selectedItemIds);
+        if (selected.has(item.id)) selected.delete(item.id);
+        else selected.add(item.id);
+        this.selectedItemIds = [...selected];
+        this.lastSelectedTVItemId = item.id;
+      } else {
+        this.selectedItemIds = [item.id];
+        this.lastSelectedTVItemId = isTV ? item.id : "";
+      }
       this.selectedItem = item;
       this.selectedEntity = { kind: item.kind === "tvshow" ? "episode" : "movie", payload: item };
       this.candidates = [];
@@ -1315,13 +1988,43 @@ createApp({
       this.scrapeSearch.year = item.yearGuess || "";
       this.renamePreview = null;
     },
+    visibleTVEpisodeItems() {
+      return this.tvTree.flatMap((show) => show.seasons.flatMap((season) => season.items));
+    },
+    tvSelectionRange(targetId) {
+      const items = this.visibleTVEpisodeItems();
+      if (!items.length) return [];
+      const anchorId = this.lastSelectedTVItemId || (this.selectedItem && this.selectedItem.kind === "tvshow" ? this.selectedItem.id : "");
+      const targetIndex = items.findIndex((item) => item.id === targetId);
+      const anchorIndex = items.findIndex((item) => item.id === anchorId);
+      if (targetIndex < 0) return [targetId];
+      if (anchorIndex < 0) return [targetId];
+      const start = Math.min(anchorIndex, targetIndex);
+      const end = Math.max(anchorIndex, targetIndex);
+      return items.slice(start, end + 1).map((item) => item.id);
+    },
+    isItemSelected(item) {
+      if (!item) return false;
+      if (this.activeModule === "tvshow") return this.selectedItemIds.includes(item.id);
+      return !!this.selectedItem && this.selectedItem.id === item.id;
+    },
+    selectedTVRenameItems(payload = null) {
+      if (payload && payload.kind === "tvshow" && this.selectedItemIds.includes(payload.id)) {
+        const selected = new Set(this.selectedItemIds);
+        return this.visibleTVEpisodeItems().filter((item) => selected.has(item.id));
+      }
+      if (payload && payload.kind === "tvshow") return [payload];
+      return this.selectedItem && this.selectedItem.kind === "tvshow" ? [this.selectedItem] : [];
+    },
     handleKeydown(event) {
       if (event.key === "Escape") {
         this.closeContextMenu();
         if (this.chooser.open && !this.chooser.loading && !this.chooser.scraping) this.closeChooser();
+        if (this.localRename.open && !this.localRename.saving) this.closeLocalRename();
       }
     },
     openContextMenu(event, scope, payload) {
+      const keepTVSelection = scope === "episode" && payload && this.selectedItemIds.includes(payload.id) && this.selectedItemIds.length > 1;
       this.contextMenu = {
         open: true,
         x: event.clientX,
@@ -1329,7 +2032,13 @@ createApp({
         scope,
         payload,
       };
-      if (scope === "movie" || scope === "episode") this.selectItem(payload);
+      if (scope === "movie" || scope === "episode") {
+        if (!keepTVSelection) this.selectItem(payload);
+        else {
+          this.selectedItem = payload;
+          this.selectedEntity = { kind: "episode", payload };
+        }
+      }
       if (scope === "show") this.selectTvGroup("show", payload);
       if (scope === "season") this.selectTvGroup("season", payload.season || payload);
     },
@@ -1341,6 +2050,107 @@ createApp({
       if (this.contextMenu.scope === "season") return "搜索并刮削本季...";
       if (this.contextMenu.scope === "episode") return "搜索并刮削本集...";
       return "搜索并刮削...";
+    },
+    canRenameFromContext() {
+      return this.contextMenu.scope === "movie" || this.contextMenu.scope === "episode";
+    },
+    openLocalRenameFromContext() {
+      const scope = this.contextMenu.scope;
+      const payload = this.contextMenu.payload;
+      this.closeContextMenu();
+      if (!payload) return;
+      if (scope === "movie") {
+        this.openLocalRename([payload], "movie");
+        return;
+      }
+      if (scope === "episode") {
+        this.openLocalRename(this.selectedTVRenameItems(payload), "tvshow");
+      }
+    },
+    openLocalRename(items, mode) {
+      const rows = items
+        .filter(Boolean)
+        .map((item) => ({
+          itemId: item.id,
+          fileName: item.fileName || this.basename(item.path),
+          newFileName: item.fileName || this.basename(item.path),
+        }));
+      if (!rows.length) return;
+      this.localRename = {
+        open: true,
+        mode,
+        tab: mode === "movie" ? "manual" : "replace",
+        saving: false,
+        error: "",
+        replaceText: "",
+        replaceWith: "",
+        addPosition: "prefix",
+        addText: "",
+        rows,
+      };
+    },
+    closeLocalRename() {
+      this.localRename.open = false;
+      this.localRename.error = "";
+    },
+    basename(path) {
+      return String(path || "").split("/").pop() || "";
+    },
+    splitFilename(fileName) {
+      const index = fileName.lastIndexOf(".");
+      if (index <= 0) return { base: fileName, ext: "" };
+      return { base: fileName.slice(0, index), ext: fileName.slice(index) };
+    },
+    localRenamePreviewName(row) {
+      if (this.localRename.mode === "movie" || this.localRename.tab === "manual") return row.newFileName.trim();
+      if (this.localRename.tab === "replace") {
+        const source = this.localRename.replaceText;
+        if (!source) return row.fileName;
+        return row.fileName.split(source).join(this.localRename.replaceWith);
+      }
+      if (this.localRename.tab === "add") {
+        const addition = this.localRename.addText;
+        if (!addition) return row.fileName;
+        const parts = this.splitFilename(row.fileName);
+        if (this.localRename.addPosition === "suffix") return `${parts.base}${addition}${parts.ext}`;
+        return `${addition}${parts.base}${parts.ext}`;
+      }
+      return row.fileName;
+    },
+    async applyLocalRename() {
+      if (!this.localRenameCanApply) return;
+      this.localRename.saving = true;
+      this.localRename.error = "";
+      this.status = "正在重命名本地文件";
+      try {
+        const requests = this.localRenamePreviewRows.map((row) => ({
+          itemId: row.itemId,
+          newFileName: row.previewName,
+        }));
+        const result = await this.api("/api/local-rename", {
+          method: "POST",
+          body: JSON.stringify({ items: requests }),
+        });
+        const updatedItems = result.items || [];
+        const byOldID = new Map(this.localRename.rows.map((row, index) => [row.itemId, updatedItems[index]]));
+        const byNewID = new Map(updatedItems.map((item) => [item.id, item]));
+        this.items = this.items.map((item) => byOldID.get(item.id) || byNewID.get(item.id) || item);
+        this.selectedItemIds = updatedItems.map((item) => item.id);
+        this.lastSelectedTVItemId = updatedItems[0] ? updatedItems[0].id : "";
+        if (this.selectedItem) {
+          this.selectedItem = byOldID.get(this.selectedItem.id) || byNewID.get(this.selectedItem.id) || updatedItems[0] || this.selectedItem;
+        } else {
+          this.selectedItem = updatedItems[0] || null;
+        }
+        if (this.selectedItem) this.selectedEntity = { kind: this.selectedItem.kind === "tvshow" ? "episode" : "movie", payload: this.selectedItem };
+        this.status = `已重命名 ${updatedItems.length} 个文件`;
+        this.closeLocalRename();
+      } catch (error) {
+        this.localRename.error = error.message;
+        this.status = error.message;
+      } finally {
+        this.localRename.saving = false;
+      }
     },
     openChooserFromSelected() {
       if (!this.selectedItem) return;
@@ -1465,14 +2275,15 @@ createApp({
         loading: false,
         scraping: false,
         error: "",
-        options: {
-          metadata: tv ? this.scraperSettings.tvShowScrapeMetadata : this.scraperSettings.movieScrapeMetadata,
-          nfo: tv ? this.scraperSettings.tvShowScrapeNfo : this.scraperSettings.movieScrapeNfo,
-          artwork: tv ? this.scraperSettings.tvShowScrapeImages : this.scraperSettings.movieScrapeImages,
-          overwrite: tv ? this.scraperSettings.tvShowScrapeOverwrite : this.scraperSettings.movieScrapeOverwrite,
-          showMetadata: this.scraperSettings.tvShowScrapeMetadata,
-          episodeMetadata: this.scraperSettings.tvShowEpisodeMetadata && (config.scope === "season" || config.scope === "show"),
-        },
+	        options: {
+	          metadata: tv ? this.scraperSettings.tvShowScrapeMetadata : this.scraperSettings.movieScrapeMetadata,
+	          nfo: tv ? this.scraperSettings.tvShowScrapeNfo : this.scraperSettings.movieScrapeNfo,
+	          artwork: tv ? this.scraperSettings.tvShowScrapeImages : this.scraperSettings.movieScrapeImages,
+	          overwrite: tv ? this.scraperSettings.tvShowScrapeOverwrite : this.scraperSettings.movieScrapeOverwrite,
+	          renameAfterScrape: true,
+	          showMetadata: this.scraperSettings.tvShowScrapeMetadata,
+	          episodeMetadata: this.scraperSettings.tvShowEpisodeMetadata && tv,
+	        },
       };
       this.searchChooser();
     },
@@ -1557,6 +2368,9 @@ createApp({
       this.chooser.error = "";
       this.status = "正在按选择项写入刮削结果";
       try {
+        const tv = this.chooser.mediaType === "tvshow";
+        const writeShowMeta = tv ? !!this.chooser.options.showMetadata : !!this.chooser.options.metadata;
+        const writeEpisodeMeta = tv && !!this.chooser.options.episodeMetadata;
         const body = {
           itemId: this.chooser.targetItem.id,
           scope: this.chooser.scope,
@@ -1565,8 +2379,13 @@ createApp({
           mediaType: this.chooser.selected.mediaType || this.chooser.mediaType,
           writeNfo: !!this.chooser.options.nfo,
           writeImages: !!this.chooser.options.artwork,
-          writeMeta: !!this.chooser.options.metadata || !!this.chooser.options.showMetadata || !!this.chooser.options.episodeMetadata,
+          writeMeta: tv ? writeShowMeta || writeEpisodeMeta : writeShowMeta,
+          writeShowMeta,
+          writeEpisodeMeta,
           overwrite: !!this.chooser.options.overwrite,
+          renameAfterScrape: !!this.chooser.options.renameAfterScrape,
+          metadataFields: this.scraperFields(tv ? "tvshow" : "movie"),
+          episodeFields: tv ? this.scraperFields("episode") : [],
         };
         if (this.chooser.targetShow) body.showName = this.chooser.targetShow.key || this.chooser.targetShow.title;
         if (this.chooser.targetSeason) body.season = this.chooser.targetSeason.season;
@@ -1576,10 +2395,13 @@ createApp({
         });
         if (result.items && result.items.length) {
           const byID = new Map(result.items.map((item) => [item.id, item]));
-          this.items = this.items.map((item) => byID.get(item.id) || item);
+          const byOldPath = new Map((result.renamePreviews || []).map((preview, index) => [preview.sourceFile, result.items[index]]));
+          this.items = this.items.map((item) => byID.get(item.id) || byOldPath.get(item.path) || item);
           if (this.selectedItem && byID.has(this.selectedItem.id)) this.selectedItem = byID.get(this.selectedItem.id);
+          if (this.selectedItem && byOldPath.has(this.selectedItem.path)) this.selectedItem = byOldPath.get(this.selectedItem.path);
         } else if (result.item) {
-          this.items = this.items.map((item) => (item.id === result.item.id ? result.item : item));
+          const oldPath = result.renamePreview ? result.renamePreview.sourceFile : "";
+          this.items = this.items.map((item) => (item.path === oldPath || item.path === result.item.path || item.id === result.item.id ? result.item : item));
           this.selectedItem = result.item;
         }
         const scraped = result.movie || result.show || this.chooser.detail;
@@ -1588,7 +2410,7 @@ createApp({
           this.rename.year = (scraped.releaseDate || scraped.firstAirDate || "").slice(0, 4);
           this.rename.tmdbId = scraped.id;
         }
-        this.status = "刮削写入完成";
+        this.status = result.renamed ? "刮削写入完成，已自动重命名" : result.renameWarnings ? `刮削完成，重命名未完成：${result.renameWarnings[0]}` : "刮削写入完成";
         this.closeChooser();
       } catch (error) {
         this.chooser.error = error.message;
@@ -1611,6 +2433,8 @@ createApp({
     },
     selectTvGroup(kind, payload) {
       if (kind === "show") {
+        this.selectedItemIds = [];
+        this.lastSelectedTVItemId = "";
         this.selectedEntity = { kind: "show", payload };
         const firstSeason = payload.seasons[0];
         if (firstSeason && firstSeason.items[0]) {
@@ -1619,17 +2443,21 @@ createApp({
         }
       }
       if (kind === "season" && payload.items[0]) {
+        this.selectedItemIds = [];
+        this.lastSelectedTVItemId = "";
         this.selectItem(payload.items[0]);
         this.selectedEntity = { kind: "season", payload };
       }
     },
     itemSeasonText(item) {
       if (item.kind !== "tvshow") return item.yearGuess || "-";
-      if (item.airDate) return item.airDate;
+      const matchedName = (item.matchedName || "").trim();
+      const showName = (item.showGuess || "").trim();
+      if (matchedName && matchedName !== showName) return matchedName;
       if (item.season && item.episodes && item.episodes.length) {
         return `S${String(item.season).padStart(2, "0")}E${item.episodes.map((episode) => String(episode).padStart(2, "0")).join(",")}`;
       }
-      if (item.season && item.episode) return `S${item.season}E${item.episode}`;
+      if (item.season && item.episode) return `S${String(item.season).padStart(2, "0")}E${String(item.episode).padStart(2, "0")}`;
       return "-";
     },
     itemStatusText(item) {
@@ -1711,16 +2539,24 @@ createApp({
             mediaType: candidate.mediaType || this.selectedItem.kind || this.activeModule,
             writeNfo: tv ? this.scraperSettings.tvShowScrapeNfo : this.scraperSettings.movieScrapeNfo,
             writeImages: tv ? this.scraperSettings.tvShowScrapeImages : this.scraperSettings.movieScrapeImages,
-            writeMeta: tv ? this.scraperSettings.tvShowScrapeMetadata : this.scraperSettings.movieScrapeMetadata,
+            writeMeta: tv ? this.scraperSettings.tvShowScrapeMetadata || this.scraperSettings.tvShowEpisodeMetadata : this.scraperSettings.movieScrapeMetadata,
+            writeShowMeta: tv ? this.scraperSettings.tvShowScrapeMetadata : this.scraperSettings.movieScrapeMetadata,
+            writeEpisodeMeta: tv ? this.scraperSettings.tvShowEpisodeMetadata : false,
             overwrite: tv ? this.scraperSettings.tvShowScrapeOverwrite : this.scraperSettings.movieScrapeOverwrite,
+            metadataFields: this.scraperFields(tv ? "tvshow" : "movie"),
+            episodeFields: tv ? this.scraperFields("episode") : [],
           }),
         });
         this.selectedItem = result.item;
+        if (result.item) {
+          const oldPath = result.renamePreview ? result.renamePreview.sourceFile : "";
+          this.items = this.items.map((item) => (item.id === result.item.id || item.path === oldPath ? result.item : item));
+        }
         const scraped = result.movie || result.show;
         this.rename.title = scraped.title;
         this.rename.year = (scraped.releaseDate || scraped.firstAirDate || "").slice(0, 4);
         this.rename.tmdbId = scraped.id;
-        this.status = "刮削写入完成";
+        this.status = result.renamed ? "刮削写入完成，已自动重命名" : result.renameWarnings ? `刮削完成，重命名未完成：${result.renameWarnings[0]}` : "刮削写入完成";
       } catch (error) {
         this.status = error.message;
       } finally {
@@ -1757,11 +2593,16 @@ createApp({
       this.busy = true;
       this.status = "正在执行重命名";
       try {
-        await this.api("/api/rename/apply", {
+        const result = await this.api("/api/rename/apply", {
           method: "POST",
           body: JSON.stringify(this.renamePreview),
         });
-        this.status = "重命名完成，请重新扫描媒体库";
+        if (result.item) {
+          const oldPath = this.renamePreview.sourceFile;
+          this.items = this.items.map((item) => (item.id === result.item.id || item.path === oldPath ? result.item : item));
+          this.selectedItem = result.item;
+        }
+        this.status = "重命名完成";
         this.renamePreview = null;
       } catch (error) {
         this.status = error.message;
