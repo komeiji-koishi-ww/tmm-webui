@@ -202,7 +202,7 @@
             <template v-if="selectedSummary">
               <section class="summary-body">
                 <div class="summary-poster">
-                  <img v-if="selectedSummary.poster" :src="selectedSummary.poster" alt="" @error="hideBrokenImage" />
+                  <img v-if="selectedSummary.poster" :key="selectedSummary.poster" :src="selectedSummary.poster" alt="" @load="showLoadedImage" @error="hideBrokenImage" />
                   <span v-else>Poster</span>
                 </div>
                 <div class="summary-title">
@@ -239,7 +239,7 @@
                   <span>{{ selectedSummary.actors.slice(0, 8).join(' / ') }}</span>
                 </div>
                 <div class="summary-fanart">
-                  <img v-if="selectedSummary.fanart" :src="selectedSummary.fanart" alt="" @error="hideBrokenImage" />
+                  <img v-if="selectedSummary.fanart" :key="selectedSummary.fanart" :src="selectedSummary.fanart" alt="" @load="showLoadedImage" @error="hideBrokenImage" />
                   <span v-else>Fanart</span>
                 </div>
                 <div class="summary-folder">

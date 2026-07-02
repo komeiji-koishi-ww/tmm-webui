@@ -10,6 +10,40 @@ import (
 	"tmmweb/internal/tmdb"
 )
 
+type xmlInt int
+
+func (v *xmlInt) UnmarshalXML(decoder *xml.Decoder, start xml.StartElement) error {
+	var raw string
+	if err := decoder.DecodeElement(&raw, &start); err != nil {
+		return err
+	}
+	*v = parseXMLInt(raw)
+	return nil
+}
+
+func (v *xmlInt) UnmarshalXMLAttr(attr xml.Attr) error {
+	*v = parseXMLInt(attr.Value)
+	return nil
+}
+
+func (v xmlInt) MarshalText() ([]byte, error) {
+	return []byte(strconv.Itoa(int(v))), nil
+}
+
+func parseXMLInt(raw string) xmlInt {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	if parsed, err := strconv.Atoi(raw); err == nil {
+		return xmlInt(parsed)
+	}
+	if parsed, err := strconv.ParseFloat(raw, 64); err == nil {
+		return xmlInt(parsed)
+	}
+	return 0
+}
+
 type movieNFO struct {
 	XMLName          xml.Name     `xml:"movie"`
 	Title            string       `xml:"title"`
@@ -17,19 +51,19 @@ type movieNFO struct {
 	SortTitle        string       `xml:"sorttitle,omitempty"`
 	Year             string       `xml:"year,omitempty"`
 	Plot             string       `xml:"plot,omitempty"`
-	Runtime          int          `xml:"runtime,omitempty"`
+	Runtime          xmlInt       `xml:"runtime,omitempty"`
 	Rating           string       `xml:"rating,omitempty"`
 	Ratings          ratings      `xml:"ratings,omitempty"`
-	UserRating       int          `xml:"userrating"`
+	UserRating       string       `xml:"userrating"`
 	ID               string       `xml:"id,omitempty"`
-	TMDBID           int          `xml:"tmdbid,omitempty"`
+	TMDBID           xmlInt       `xml:"tmdbid,omitempty"`
 	UniqueIDs        []unique     `xml:"uniqueid"`
 	Genres           []string     `xml:"genre,omitempty"`
 	Premiered        string       `xml:"premiered,omitempty"`
 	Thumb            string       `xml:"thumb,omitempty"`
 	Fanart           string       `xml:"fanart>thumb,omitempty"`
 	Watched          bool         `xml:"watched"`
-	PlayCount        int          `xml:"playcount"`
+	PlayCount        string       `xml:"playcount"`
 	Studios          []string     `xml:"studio,omitempty"`
 	Actors           []actorNFO   `xml:"actor,omitempty"`
 	Trailer          string       `xml:"trailer"`
@@ -51,7 +85,7 @@ type tvShowNFO struct {
 	Rating    string   `xml:"rating,omitempty"`
 	Ratings   ratings  `xml:"ratings,omitempty"`
 	ID        string   `xml:"id,omitempty"`
-	TMDBID    int      `xml:"tmdbid,omitempty"`
+	TMDBID    xmlInt   `xml:"tmdbid,omitempty"`
 	UniqueIDs []unique `xml:"uniqueid"`
 	Genres    []string `xml:"genre,omitempty"`
 	Premiered string   `xml:"premiered,omitempty"`
@@ -61,7 +95,7 @@ type tvShowNFO struct {
 
 type tvSeasonNFO struct {
 	XMLName      xml.Name `xml:"season"`
-	SeasonNumber int      `xml:"seasonnumber"`
+	SeasonNumber xmlInt   `xml:"seasonnumber"`
 	Title        string   `xml:"title"`
 	ShowTitle    string   `xml:"showtitle,omitempty"`
 	SortTitle    string   `xml:"sorttitle,omitempty"`
@@ -69,7 +103,7 @@ type tvSeasonNFO struct {
 	Plot         string   `xml:"plot,omitempty"`
 	Rating       string   `xml:"rating,omitempty"`
 	Ratings      ratings  `xml:"ratings,omitempty"`
-	TMDBID       int      `xml:"tmdbid,omitempty"`
+	TMDBID       xmlInt   `xml:"tmdbid,omitempty"`
 	UniqueIDs    []unique `xml:"uniqueid"`
 	Premiered    string   `xml:"premiered,omitempty"`
 	Thumb        string   `xml:"thumb,omitempty"`
@@ -81,24 +115,24 @@ type tvEpisodeNFO struct {
 	Title            string           `xml:"title"`
 	ShowTitle        string           `xml:"showtitle,omitempty"`
 	Original         string           `xml:"originaltitle,omitempty"`
-	Season           int              `xml:"season"`
-	Episode          int              `xml:"episode"`
-	DisplaySeason    int              `xml:"displayseason,omitempty"`
-	DisplayEpisode   int              `xml:"displayepisode,omitempty"`
+	Season           xmlInt           `xml:"season"`
+	Episode          xmlInt           `xml:"episode"`
+	DisplaySeason    xmlInt           `xml:"displayseason,omitempty"`
+	DisplayEpisode   xmlInt           `xml:"displayepisode,omitempty"`
 	ID               string           `xml:"id,omitempty"`
 	Plot             string           `xml:"plot,omitempty"`
-	Runtime          int              `xml:"runtime,omitempty"`
+	Runtime          xmlInt           `xml:"runtime,omitempty"`
 	Aired            string           `xml:"aired,omitempty"`
 	Premiered        string           `xml:"premiered,omitempty"`
 	Rating           string           `xml:"rating,omitempty"`
 	Ratings          ratings          `xml:"ratings,omitempty"`
-	UserRating       int              `xml:"userrating"`
-	TMDBID           int              `xml:"tmdbid,omitempty"`
+	UserRating       string           `xml:"userrating"`
+	TMDBID           xmlInt           `xml:"tmdbid,omitempty"`
 	UniqueIDs        []unique         `xml:"uniqueid"`
 	Thumb            string           `xml:"thumb,omitempty"`
 	MPAA             string           `xml:"mpaa"`
 	Watched          bool             `xml:"watched"`
-	PlayCount        int              `xml:"playcount"`
+	PlayCount        string           `xml:"playcount"`
 	Studios          []string         `xml:"studio,omitempty"`
 	Credits          []personRef      `xml:"credits,omitempty"`
 	Directors        []personRef      `xml:"director,omitempty"`
@@ -126,7 +160,7 @@ type rating struct {
 	Default string `xml:"default,attr"`
 	Max     string `xml:"max,attr,omitempty"`
 	Value   string `xml:"value"`
-	Votes   int    `xml:"votes,omitempty"`
+	Votes   xmlInt `xml:"votes,omitempty"`
 }
 
 type ratings struct {
@@ -134,7 +168,7 @@ type ratings struct {
 }
 
 type personRef struct {
-	TMDBID int    `xml:"tmdbid,attr,omitempty"`
+	TMDBID xmlInt `xml:"tmdbid,attr,omitempty"`
 	Value  string `xml:",chardata"`
 }
 
@@ -144,7 +178,7 @@ type actorNFO struct {
 	Thumb   string `xml:"thumb,omitempty"`
 	Profile string `xml:"profile,omitempty"`
 	Type    string `xml:"type,omitempty"`
-	TMDBID  int    `xml:"tmdbid,omitempty"`
+	TMDBID  xmlInt `xml:"tmdbid,omitempty"`
 }
 
 type fileInfoNFO struct {
@@ -160,9 +194,9 @@ type streamDetailsNFO struct {
 type videoNFO struct {
 	Codec             string  `xml:"codec,omitempty"`
 	Aspect            float64 `xml:"aspect,omitempty"`
-	Width             int     `xml:"width,omitempty"`
-	Height            int     `xml:"height,omitempty"`
-	DurationInSeconds int     `xml:"durationinseconds,omitempty"`
+	Width             xmlInt  `xml:"width,omitempty"`
+	Height            xmlInt  `xml:"height,omitempty"`
+	DurationInSeconds xmlInt  `xml:"durationinseconds,omitempty"`
 	HDRType           string  `xml:"hdrtype,omitempty"`
 	StereoMode        string  `xml:"stereomode"`
 }
@@ -170,7 +204,7 @@ type videoNFO struct {
 type audioNFO struct {
 	Codec    string `xml:"codec,omitempty"`
 	Language string `xml:"language,omitempty"`
-	Channels int    `xml:"channels,omitempty"`
+	Channels xmlInt `xml:"channels,omitempty"`
 }
 
 type subtitleNFO struct {
@@ -184,8 +218,8 @@ type episodeGroupsNFO struct {
 type episodeGroupNFO struct {
 	ID      string `xml:"id,attr"`
 	Name    string `xml:"name,attr"`
-	Season  int    `xml:"season,attr"`
-	Episode int    `xml:"episode,attr"`
+	Season  xmlInt `xml:"season,attr"`
+	Episode xmlInt `xml:"episode,attr"`
 }
 
 type EpisodeFileInfo struct {
@@ -238,9 +272,9 @@ type Summary struct {
 func WriteMovie(dir string, movie tmdb.Movie, fileInfo EpisodeFileInfo) error {
 	value := movieNFO{
 		Title: movie.Title, Original: movie.Original, SortTitle: movie.Title,
-		Year: year(movie.ReleaseDate), Plot: movie.Overview, Runtime: movie.Runtime,
+		Year: year(movie.ReleaseDate), Plot: movie.Overview, Runtime: xmlInt(movie.Runtime),
 		Rating: strconv.FormatFloat(movie.VoteAverage, 'f', 1, 64),
-		ID:     strconv.Itoa(movie.ID), TMDBID: movie.ID,
+		ID:     strconv.Itoa(movie.ID), TMDBID: xmlInt(movie.ID),
 		Genres: movie.Genres, Premiered: movie.ReleaseDate,
 		Thumb:            tmdbImageURL(movie.PosterPath, "original"),
 		Fanart:           tmdbImageURL(movie.BackdropPath, "original"),
@@ -260,7 +294,7 @@ func WriteMovie(dir string, movie tmdb.Movie, fileInfo EpisodeFileInfo) error {
 		value.Ratings.Items = append(value.Ratings.Items, rating{
 			Name: "themoviedb", Default: "true", Max: "10",
 			Value: strconv.FormatFloat(movie.VoteAverage, 'f', 1, 64),
-			Votes: movie.VoteCount,
+			Votes: xmlInt(movie.VoteCount),
 		})
 	}
 	output, err := xml.MarshalIndent(value, "", "  ")
@@ -291,14 +325,14 @@ func WriteTVShow(dir string, show tmdb.TVShow) error {
 
 func WriteTVSeason(path string, season tmdb.TVSeason, fanartPath string) error {
 	value := tvSeasonNFO{
-		SeasonNumber: season.SeasonNumber,
+		SeasonNumber: xmlInt(season.SeasonNumber),
 		Title:        seasonTitle(season),
 		ShowTitle:    season.ShowTitle,
 		SortTitle:    seasonTitle(season),
 		Year:         year(season.AirDate),
 		Plot:         season.Overview,
 		Rating:       strconv.FormatFloat(season.VoteAverage, 'f', 1, 64),
-		TMDBID:       season.ShowID,
+		TMDBID:       xmlInt(season.ShowID),
 		Premiered:    season.AirDate,
 		Thumb:        season.PosterPath,
 		Fanart:       fanartPath,
@@ -321,8 +355,8 @@ func WriteTVEpisode(path string, show tmdb.TVShow, episode tmdb.TVEpisode, fileI
 		Title:            episode.Title,
 		Original:         episode.Title,
 		ShowTitle:        show.Title,
-		Season:           episode.SeasonNumber,
-		Episode:          episode.EpisodeNumber,
+		Season:           xmlInt(episode.SeasonNumber),
+		Episode:          xmlInt(episode.EpisodeNumber),
 		DisplaySeason:    -1,
 		DisplayEpisode:   -1,
 		ID:               strconv.Itoa(episode.ID),
@@ -330,8 +364,8 @@ func WriteTVEpisode(path string, show tmdb.TVShow, episode tmdb.TVEpisode, fileI
 		Aired:            episode.AirDate,
 		Premiered:        episode.AirDate,
 		Rating:           strconv.FormatFloat(episode.VoteAverage, 'f', 1, 64),
-		Runtime:          episode.Runtime,
-		TMDBID:           episode.ID,
+		Runtime:          xmlInt(episode.Runtime),
+		TMDBID:           xmlInt(episode.ID),
 		Thumb:            tmdbImageURL(episode.StillPath, "original"),
 		Studios:          show.Studios,
 		DateAdded:        fileInfo.DateAdded,
@@ -340,14 +374,14 @@ func WriteTVEpisode(path string, show tmdb.TVShow, episode tmdb.TVEpisode, fileI
 		TMMComment:       "tinyMediaManager meta data",
 	}
 	if value.Runtime == 0 && len(fileInfo.VideoStreams) > 0 {
-		value.Runtime = fileInfo.VideoStreams[0].DurationSeconds / 60
+		value.Runtime = xmlInt(fileInfo.VideoStreams[0].DurationSeconds / 60)
 	}
 	value.UniqueIDs = append(value.UniqueIDs, unique{Type: "tmdb", Default: "true", Value: strconv.Itoa(episode.ID)})
 	if episode.VoteAverage > 0 {
 		value.Ratings.Items = append(value.Ratings.Items, rating{
 			Name: "themoviedb", Default: "true", Max: "10",
 			Value: strconv.FormatFloat(episode.VoteAverage, 'f', 1, 64),
-			Votes: episode.VoteCount,
+			Votes: xmlInt(episode.VoteCount),
 		})
 	}
 	value.Credits = personRefs(episode.Writers)
@@ -355,7 +389,7 @@ func WriteTVEpisode(path string, show tmdb.TVShow, episode tmdb.TVEpisode, fileI
 	value.Actors = actorRefs(append(append([]tmdb.Person{}, show.CastPeople...), episode.Actors...))
 	value.FileInfo = episodeFileInfo(fileInfo)
 	value.EpisodeGroups.Groups = append(value.EpisodeGroups.Groups,
-		episodeGroupNFO{ID: "AIRED", Season: episode.SeasonNumber, Episode: episode.EpisodeNumber},
+		episodeGroupNFO{ID: "AIRED", Season: xmlInt(episode.SeasonNumber), Episode: xmlInt(episode.EpisodeNumber)},
 		episodeGroupNFO{ID: "DISPLAY", Season: -1, Episode: -1},
 	)
 	output, err := xml.MarshalIndent(value, "", "  ")
@@ -384,7 +418,7 @@ func personRefs(values []tmdb.Person) []personRef {
 			}
 			seen[value.ID] = true
 		}
-		refs = append(refs, personRef{TMDBID: value.ID, Value: name})
+		refs = append(refs, personRef{TMDBID: xmlInt(value.ID), Value: name})
 	}
 	return refs
 }
@@ -407,7 +441,7 @@ func actorRefs(values []tmdb.Person) []actorNFO {
 			Name: name, Role: strings.TrimSpace(value.Role),
 			Thumb:   tmdbImageURL(value.ProfilePath, "h632"),
 			Profile: tmdbPersonURL(value.ID),
-			TMDBID:  value.ID,
+			TMDBID:  xmlInt(value.ID),
 		}
 		if value.Guest {
 			actor.Type = "GuestStar"
@@ -424,13 +458,13 @@ func episodeFileInfo(info EpisodeFileInfo) *fileInfoNFO {
 	fileInfo := &fileInfoNFO{}
 	for _, stream := range info.VideoStreams {
 		fileInfo.StreamDetails.Videos = append(fileInfo.StreamDetails.Videos, videoNFO{
-			Codec: stream.Codec, Aspect: stream.Aspect, Width: stream.Width, Height: stream.Height,
-			DurationInSeconds: stream.DurationSeconds, HDRType: stream.HDRType, StereoMode: stream.StereoMode,
+			Codec: stream.Codec, Aspect: stream.Aspect, Width: xmlInt(stream.Width), Height: xmlInt(stream.Height),
+			DurationInSeconds: xmlInt(stream.DurationSeconds), HDRType: stream.HDRType, StereoMode: stream.StereoMode,
 		})
 	}
 	for _, stream := range info.AudioStreams {
 		fileInfo.StreamDetails.Audios = append(fileInfo.StreamDetails.Audios, audioNFO{
-			Codec: stream.Codec, Language: stream.Language, Channels: stream.Channels,
+			Codec: stream.Codec, Language: stream.Language, Channels: xmlInt(stream.Channels),
 		})
 	}
 	for _, stream := range info.SubtitleStreams {
@@ -517,12 +551,12 @@ func summaryFromMovie(value movieNFO) Summary {
 		Original:  strings.TrimSpace(value.Original),
 		Year:      firstNonEmpty(strings.TrimSpace(value.Year), year(value.Premiered)),
 		Plot:      strings.TrimSpace(value.Plot),
-		Runtime:   value.Runtime,
+		Runtime:   int(value.Runtime),
 		Rating:    ratingValue(value.Rating, value.Ratings.Items),
 		Genres:    compactStrings(value.Genres),
 		Actors:    actorNames(value.Actors),
 		Premiered: strings.TrimSpace(value.Premiered),
-		TMDBID:    value.TMDBID,
+		TMDBID:    int(value.TMDBID),
 	}
 	applyUniqueIDs(&summary, value.UniqueIDs)
 	applyLegacyID(&summary, value.ID)
@@ -539,7 +573,7 @@ func summaryFromTVShow(value tvShowNFO) Summary {
 		Rating:    ratingValue(value.Rating, value.Ratings.Items),
 		Genres:    compactStrings(value.Genres),
 		Premiered: strings.TrimSpace(value.Premiered),
-		TMDBID:    value.TMDBID,
+		TMDBID:    int(value.TMDBID),
 	}
 	applyUniqueIDs(&summary, value.UniqueIDs)
 	applyLegacyID(&summary, value.ID)
@@ -554,8 +588,8 @@ func summaryFromSeason(value tvSeasonNFO) Summary {
 		Plot:         strings.TrimSpace(value.Plot),
 		Rating:       ratingValue(value.Rating, value.Ratings.Items),
 		Premiered:    strings.TrimSpace(value.Premiered),
-		TMDBID:       value.TMDBID,
-		SeasonNumber: value.SeasonNumber,
+		TMDBID:       int(value.TMDBID),
+		SeasonNumber: int(value.SeasonNumber),
 	}
 	applyUniqueIDs(&summary, value.UniqueIDs)
 	return summary
@@ -566,11 +600,11 @@ func summaryFromEpisode(value tvEpisodeNFO) Summary {
 		Title:     strings.TrimSpace(value.Title),
 		Original:  strings.TrimSpace(value.Original),
 		Plot:      strings.TrimSpace(value.Plot),
-		Runtime:   value.Runtime,
+		Runtime:   int(value.Runtime),
 		Rating:    ratingValue(value.Rating, value.Ratings.Items),
 		Actors:    actorNames(value.Actors),
 		Premiered: firstNonEmpty(strings.TrimSpace(value.Premiered), strings.TrimSpace(value.Aired)),
-		TMDBID:    value.TMDBID,
+		TMDBID:    int(value.TMDBID),
 	}
 	summary.Year = year(summary.Premiered)
 	applyUniqueIDs(&summary, value.UniqueIDs)
@@ -585,13 +619,13 @@ func applyFileInfoSummary(summary *Summary, fileInfo *fileInfoNFO) {
 	}
 	for _, stream := range fileInfo.StreamDetails.Videos {
 		summary.VideoStreams = append(summary.VideoStreams, VideoStream{
-			Codec: stream.Codec, Aspect: stream.Aspect, Width: stream.Width, Height: stream.Height,
-			DurationSeconds: stream.DurationInSeconds, StereoMode: stream.StereoMode, HDRType: stream.HDRType,
+			Codec: stream.Codec, Aspect: stream.Aspect, Width: int(stream.Width), Height: int(stream.Height),
+			DurationSeconds: int(stream.DurationInSeconds), StereoMode: stream.StereoMode, HDRType: stream.HDRType,
 		})
 	}
 	for _, stream := range fileInfo.StreamDetails.Audios {
 		summary.AudioStreams = append(summary.AudioStreams, AudioStream{
-			Codec: stream.Codec, Language: stream.Language, Channels: stream.Channels,
+			Codec: stream.Codec, Language: stream.Language, Channels: int(stream.Channels),
 		})
 	}
 	for _, stream := range fileInfo.StreamDetails.Subtitles {

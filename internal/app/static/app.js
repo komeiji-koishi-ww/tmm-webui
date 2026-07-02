@@ -1234,6 +1234,9 @@ createApp({
     hideBrokenImage(event) {
       if (event && event.target) event.target.style.display = "none";
     },
+    showLoadedImage(event) {
+      if (event && event.target) event.target.style.display = "";
+    },
     buildSummary(item, overrides = {}) {
       const fallback = item || {};
       const entityType = overrides.entityType || fallback.kind || "movie";
