@@ -1876,10 +1876,12 @@ func (s *Server) runScanTask(taskID string, library media.Library) {
 
 func scanMediaInfoEnabled() bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("TMMWEB_SCAN_MEDIAINFO"))) {
-	case "1", "true", "yes", "on":
+	case "", "1", "true", "yes", "on":
 		return true
-	default:
+	case "0", "false", "no", "off":
 		return false
+	default:
+		return true
 	}
 }
 
