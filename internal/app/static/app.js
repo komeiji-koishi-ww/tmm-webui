@@ -931,6 +931,8 @@ const app = createApp({
     window.addEventListener("blur", this.clearKeyboardModifiers);
     window.addEventListener("pointermove", this.handleResizeMove);
     window.addEventListener("pointerup", this.stopResize);
+    window.addEventListener("mousemove", this.handleResizeMove);
+    window.addEventListener("mouseup", this.stopResize);
     this.status = "就绪";
   },
   beforeUnmount() {
@@ -941,6 +943,8 @@ const app = createApp({
     window.removeEventListener("blur", this.clearKeyboardModifiers);
     window.removeEventListener("pointermove", this.handleResizeMove);
     window.removeEventListener("pointerup", this.stopResize);
+    window.removeEventListener("mousemove", this.handleResizeMove);
+    window.removeEventListener("mouseup", this.stopResize);
   },
   methods: {
     loadLayoutSettings() {
@@ -973,7 +977,8 @@ const app = createApp({
       }
     },
     startWorkbenchResize(event) {
-      const rect = this.$refs.workbench ? this.$refs.workbench.getBoundingClientRect() : null;
+      const workbench = this.$refs.workbench && (this.$refs.workbench.$el || this.$refs.workbench);
+      const rect = workbench && workbench.getBoundingClientRect ? workbench.getBoundingClientRect() : null;
       if (!rect) return;
       this.layout.resizing = {
         type: "workbench",

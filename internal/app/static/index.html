@@ -4,11 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>TMM WebUI</title>
-    <script src="/vue.global.prod.js?v=20260703-selection"></script>
-    <link rel="stylesheet" href="/vendor/element-plus/index.css?v=20260703-selection" />
-    <script src="/vendor/element-plus/index.full.min.js?v=20260703-selection"></script>
-    <script src="/vendor/element-plus-icons/index.iife.min.js?v=20260703-selection"></script>
-    <link rel="stylesheet" href="/styles.css?v=20260703-selection" />
+    <script src="/vue.global.prod.js?v=20260703-selection2"></script>
+    <link rel="stylesheet" href="/vendor/element-plus/index.css?v=20260703-selection2" />
+    <script src="/vendor/element-plus/index.full.min.js?v=20260703-selection2"></script>
+    <script src="/vendor/element-plus-icons/index.iife.min.js?v=20260703-selection2"></script>
+    <link rel="stylesheet" href="/styles.css?v=20260703-selection2" />
   </head>
   <body>
     <div id="app" v-cloak>
@@ -104,23 +104,23 @@
                   @row-contextmenu="(row, _column, event) => { event.preventDefault(); openContextMenu(event, 'movie', row); }"
                 >
                   <el-table-column prop="titleGuess" column-key="title" label="标题" :width="layout.movieColumns[0]" min-width="180" show-overflow-tooltip resizable>
-                    <template #header><span class="table-head-cell">标题<span class="column-resize-handle" @pointerdown.stop.prevent="startColumnResize('movie', 0, $event)"></span></span></template>
+                    <template #header><span class="table-head-cell">标题<span class="column-resize-handle" @pointerdown.stop.prevent="startColumnResize('movie', 0, $event)" @mousedown.stop.prevent="startColumnResize('movie', 0, $event)"></span></span></template>
                   </el-table-column>
                   <el-table-column prop="yearGuess" column-key="year" label="年份" :width="layout.movieColumns[1]" min-width="70" sortable resizable>
-                    <template #header><span class="table-head-cell">年份<span class="column-resize-handle" @pointerdown.stop.prevent="startColumnResize('movie', 1, $event)"></span></span></template>
+                    <template #header><span class="table-head-cell">年份<span class="column-resize-handle" @pointerdown.stop.prevent="startColumnResize('movie', 1, $event)" @mousedown.stop.prevent="startColumnResize('movie', 1, $event)"></span></span></template>
                   </el-table-column>
                   <el-table-column column-key="rating" label="评分" :width="layout.movieColumns[2]" min-width="70" sortable resizable>
-                    <template #header><span class="table-head-cell">评分<span class="column-resize-handle" @pointerdown.stop.prevent="startColumnResize('movie', 2, $event)"></span></span></template>
+                    <template #header><span class="table-head-cell">评分<span class="column-resize-handle" @pointerdown.stop.prevent="startColumnResize('movie', 2, $event)" @mousedown.stop.prevent="startColumnResize('movie', 2, $event)"></span></span></template>
                     <template #default="{ row }">
                       <span class="rating-text">{{ formatRating(row.rating) }}</span>
                     </template>
                   </el-table-column>
                   <el-table-column column-key="dateAdded" label="添加日期" :width="layout.movieColumns[3]" min-width="100" sortable resizable>
-                    <template #header><span class="table-head-cell">添加日期<span class="column-resize-handle" @pointerdown.stop.prevent="startColumnResize('movie', 3, $event)"></span></span></template>
+                    <template #header><span class="table-head-cell">添加日期<span class="column-resize-handle" @pointerdown.stop.prevent="startColumnResize('movie', 3, $event)" @mousedown.stop.prevent="startColumnResize('movie', 3, $event)"></span></span></template>
                     <template #default="{ row }">{{ formatDate(row.dateAdded) }}</template>
                   </el-table-column>
                   <el-table-column column-key="status" label="NFO / 图片 / 媒体信息" :width="layout.movieColumns[4]" min-width="220" resizable>
-                    <template #header><span class="table-head-cell">NFO / 图片 / 媒体信息<span class="column-resize-handle" @pointerdown.stop.prevent="startColumnResize('movie', 4, $event)"></span></span></template>
+                    <template #header><span class="table-head-cell">NFO / 图片 / 媒体信息<span class="column-resize-handle" @pointerdown.stop.prevent="startColumnResize('movie', 4, $event)" @mousedown.stop.prevent="startColumnResize('movie', 4, $event)"></span></span></template>
                     <template #default="{ row }">
                       <el-tag size="small" :type="row.hasNfo ? 'success' : 'danger'">{{ row.hasNfo ? 'NFO' : '未匹配' }}</el-tag>
                       <el-tag size="small" :type="row.hasPoster ? 'success' : 'warning'">Poster</el-tag>
@@ -163,26 +163,26 @@
                   @row-contextmenu="handleTVTableContextMenu"
                 >
                   <el-table-column prop="title" column-key="title" label="标题 / 季 / 集" :width="layout.tvColumns[0]" min-width="200" show-overflow-tooltip resizable>
-                    <template #header><span class="table-head-cell">标题 / 季 / 集<span class="column-resize-handle" @pointerdown.stop.prevent="startColumnResize('tvshow', 0, $event)"></span></span></template>
+                    <template #header><span class="table-head-cell">标题 / 季 / 集<span class="column-resize-handle" @pointerdown.stop.prevent="startColumnResize('tvshow', 0, $event)" @mousedown.stop.prevent="startColumnResize('tvshow', 0, $event)"></span></span></template>
                     <template #default="{ row }">
-                      <span :class="['tree-title', row.level, 'tv-cell-hit']" @click.stop="handleTVTitleClick(row, $event)">{{ row.title }}</span>
+                      <span :class="['tree-title', row.level, 'tv-cell-hit']" @mousedown.left.stop="handleTVTitleClick(row, $event)" @click.stop="handleTVTitleClick(row, $event)">{{ row.title }}</span>
                     </template>
                   </el-table-column>
                   <el-table-column prop="year" column-key="year" label="年份" :width="layout.tvColumns[1]" min-width="70" resizable>
-                    <template #header><span class="table-head-cell">年份<span class="column-resize-handle" @pointerdown.stop.prevent="startColumnResize('tvshow', 1, $event)"></span></span></template>
-                    <template #default="{ row }"><span class="tv-cell-hit" @click.stop="activateTVRow(row, $event)">{{ row.year }}</span></template>
+                    <template #header><span class="table-head-cell">年份<span class="column-resize-handle" @pointerdown.stop.prevent="startColumnResize('tvshow', 1, $event)" @mousedown.stop.prevent="startColumnResize('tvshow', 1, $event)"></span></span></template>
+                    <template #default="{ row }"><span class="tv-cell-hit" @mousedown.left.stop="activateTVRow(row, $event)" @click.stop="activateTVRow(row, $event)">{{ row.year }}</span></template>
                   </el-table-column>
                   <el-table-column column-key="rating" label="评分" :width="layout.tvColumns[2]" min-width="70" resizable>
-                    <template #header><span class="table-head-cell">评分<span class="column-resize-handle" @pointerdown.stop.prevent="startColumnResize('tvshow', 2, $event)"></span></span></template>
-                    <template #default="{ row }"><span class="tv-cell-hit" @click.stop="activateTVRow(row, $event)">{{ formatRating(row.rating) }}</span></template>
+                    <template #header><span class="table-head-cell">评分<span class="column-resize-handle" @pointerdown.stop.prevent="startColumnResize('tvshow', 2, $event)" @mousedown.stop.prevent="startColumnResize('tvshow', 2, $event)"></span></span></template>
+                    <template #default="{ row }"><span class="tv-cell-hit" @mousedown.left.stop="activateTVRow(row, $event)" @click.stop="activateTVRow(row, $event)">{{ formatRating(row.rating) }}</span></template>
                   </el-table-column>
                   <el-table-column column-key="dateAdded" label="添加日期" :width="layout.tvColumns[3]" min-width="100" resizable>
-                    <template #header><span class="table-head-cell">添加日期<span class="column-resize-handle" @pointerdown.stop.prevent="startColumnResize('tvshow', 3, $event)"></span></span></template>
-                    <template #default="{ row }"><span class="tv-cell-hit" @click.stop="activateTVRow(row, $event)">{{ formatDate(row.dateAdded) }}</span></template>
+                    <template #header><span class="table-head-cell">添加日期<span class="column-resize-handle" @pointerdown.stop.prevent="startColumnResize('tvshow', 3, $event)" @mousedown.stop.prevent="startColumnResize('tvshow', 3, $event)"></span></span></template>
+                    <template #default="{ row }"><span class="tv-cell-hit" @mousedown.left.stop="activateTVRow(row, $event)" @click.stop="activateTVRow(row, $event)">{{ formatDate(row.dateAdded) }}</span></template>
                   </el-table-column>
                   <el-table-column prop="status" column-key="status" label="NFO / 图片 / 媒体信息" :width="layout.tvColumns[4]" min-width="220" show-overflow-tooltip resizable>
-                    <template #header><span class="table-head-cell">NFO / 图片 / 媒体信息<span class="column-resize-handle" @pointerdown.stop.prevent="startColumnResize('tvshow', 4, $event)"></span></span></template>
-                    <template #default="{ row }"><span class="tv-cell-hit" @click.stop="activateTVRow(row, $event)">{{ row.status }}</span></template>
+                    <template #header><span class="table-head-cell">NFO / 图片 / 媒体信息<span class="column-resize-handle" @pointerdown.stop.prevent="startColumnResize('tvshow', 4, $event)" @mousedown.stop.prevent="startColumnResize('tvshow', 4, $event)"></span></span></template>
+                    <template #default="{ row }"><span class="tv-cell-hit" @mousedown.left.stop="activateTVRow(row, $event)" @click.stop="activateTVRow(row, $event)">{{ row.status }}</span></template>
                   </el-table-column>
                 </el-table>
               </section>
@@ -194,7 +194,7 @@
               </footer>
             </section>
 
-            <div class="layout-resizer" title="拖动调整列表和详情宽度" @pointerdown="startWorkbenchResize"></div>
+            <div class="layout-resizer" title="拖动调整列表和详情宽度" @pointerdown="startWorkbenchResize" @mousedown="startWorkbenchResize"></div>
 
             <aside class="inspector-pane">
               <template v-if="selectedSummary">
@@ -666,6 +666,6 @@
         </el-dialog>
       </el-config-provider>
     </div>
-    <script src="/app.js?v=20260703-selection"></script>
+    <script src="/app.js?v=20260703-selection2"></script>
   </body>
 </html>
