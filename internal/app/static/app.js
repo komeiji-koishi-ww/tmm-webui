@@ -1010,6 +1010,10 @@ const app = createApp({
       this.layout[key] = widths;
       localStorage.setItem(`tmmweb.${key}`, JSON.stringify(widths.map((value) => Math.round(value))));
     },
+    saveColumnWidths(kind) {
+      const key = kind === "movie" ? "movieColumns" : "tvColumns";
+      localStorage.setItem(`tmmweb.${key}`, JSON.stringify(this.layout[key].map((value) => Math.round(value))));
+    },
     startFilterNavResize(event) {
       this.layout.resizing = {
         type: "filterNav",
@@ -1050,12 +1054,14 @@ const app = createApp({
     },
     stopResize() {
       if (!this.layout.resizing) return;
+      const resizing = this.layout.resizing;
       localStorage.setItem("tmmweb.inspectorWidth", String(Math.round(this.clampedInspectorWidth(this.layout.inspectorWidth))));
       localStorage.removeItem("tmmweb.browserWidth");
       localStorage.setItem("tmmweb.filterNavWidth", String(Math.round(this.layout.filterNavWidth)));
       localStorage.setItem("tmmweb.movieColumns", JSON.stringify(this.layout.movieColumns.map((value) => Math.round(value))));
       localStorage.setItem("tmmweb.tvColumns", JSON.stringify(this.layout.tvColumns.map((value) => Math.round(value))));
       this.layout.resizing = null;
+      if (resizing.type === "column") this.saveColumnWidths(resizing.kind);
     },
     minColumnWidth(index) {
       if (index === 0) return 180;
@@ -2467,6 +2473,14 @@ const app = createApp({
       if (scope === "episode") {
         this.openLocalRename(this.selectedTVRenameItems(payload), "tvshow");
       }
+    },
+    openRenameFromToolbar() {
+      if (!this.selectedItem) return;
+      if (this.activeModule === "tvshow") {
+        this.openLocalRename(this.selectedTVRenameItems(this.selectedItem), "tvshow");
+        return;
+      }
+      this.openLocalRename([this.selectedItem], "movie");
     },
     openLocalRename(items, mode) {
       const rows = items

@@ -182,7 +182,7 @@ select {
 
 .main-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 6px minmax(360px, var(--inspector-width, 440px));
+  grid-template-columns: minmax(0, 1fr) 10px minmax(360px, var(--inspector-width, 440px));
   gap: 0;
   height: calc(100vh - 68px);
   min-height: 0;
@@ -280,6 +280,38 @@ select {
   font-weight: 700;
 }
 
+.table-head-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  padding-right: 12px;
+}
+
+.column-resize-handle {
+  position: absolute;
+  top: -8px;
+  right: -10px;
+  bottom: -8px;
+  width: 14px;
+  cursor: col-resize;
+}
+
+.column-resize-handle::after {
+  position: absolute;
+  top: 8px;
+  right: 6px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 999px;
+  background: #c6d0dd;
+  content: "";
+}
+
+.column-resize-handle:hover::after {
+  background: var(--app-primary);
+}
+
 .media-table .el-table__row {
   cursor: default;
 }
@@ -323,7 +355,15 @@ select {
 }
 
 .tree-title {
+  display: block;
   font-weight: 600;
+}
+
+.tv-cell-hit {
+  display: block;
+  width: 100%;
+  min-height: 24px;
+  cursor: default;
 }
 
 .tree-title.season {
@@ -355,23 +395,23 @@ select {
   position: relative;
   min-height: 0;
   cursor: col-resize;
-  background: linear-gradient(90deg, transparent 0, transparent 2px, #d9e1eb 2px, #d9e1eb 4px, transparent 4px);
+  background: linear-gradient(90deg, transparent 0, transparent 4px, #d9e1eb 4px, #d9e1eb 6px, transparent 6px);
 }
 
 .layout-resizer::after {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 2px;
+  width: 6px;
   height: 46px;
   border-radius: 999px;
-  background: #b8c4d4;
+  background: repeating-linear-gradient(90deg, #aab7c7 0, #aab7c7 1px, transparent 1px, transparent 3px);
   content: "";
   transform: translate(-50%, -50%);
 }
 
 .layout-resizer:hover::after {
-  background: var(--app-primary);
+  background: repeating-linear-gradient(90deg, var(--app-primary) 0, var(--app-primary) 1px, transparent 1px, transparent 3px);
 }
 
 .inspector-pane {
