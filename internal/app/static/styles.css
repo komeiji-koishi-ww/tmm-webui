@@ -195,7 +195,7 @@ select {
 
 .library-pane {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) 32px;
+  grid-template-rows: auto auto minmax(0, 1fr) auto 32px;
   min-width: 0;
   padding: 18px 14px 10px 22px;
 }
@@ -268,6 +268,21 @@ select {
 .media-inline {
   color: var(--app-muted);
   font-size: 12px;
+}
+
+.table-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 2px 6px;
+  color: #6e7b8d;
+  font-size: 12px;
+}
+
+.table-pagination .el-pagination {
+  flex: 0 0 auto;
 }
 
 .tree-title {

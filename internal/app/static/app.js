@@ -1,4 +1,4 @@
-const { createApp } = Vue;
+const { createApp, markRaw } = Vue;
 const ElementIcons = window.ElementPlusIconsVue || {};
 const {
   ArrowUp,
@@ -285,6 +285,11 @@ const app = createApp({
         entries: [],
       },
       query: "",
+      pagination: {
+        page: 1,
+        pageSize: 150,
+        pageSizes: [80, 150, 300, 600],
+      },
       filters: [],
       filterEditor: {
         open: false,
@@ -651,17 +656,31 @@ const app = createApp({
       const query = this.query.trim().toLowerCase();
       const tvStats = this.activeModule === "tvshow" ? this.buildTVStats(this.items) : null;
       const filtered = this.items.filter((item) => {
-        const haystack = [item.titleGuess, item.showGuess, item.fileName, item.path, item.yearGuess, item.matchedName]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        if (query && !haystack.includes(query)) return false;
+        if (query && !(item.searchText || "").includes(query)) return false;
         return this.activeFilters.every((filter) => this.filterAcceptsItem(filter, item, tvStats));
       });
       return filtered;
     },
-    movieRows() {
+    sortedMovieRows() {
       return this.sortItems(this.visibleItems.slice());
+    },
+    movieRows() {
+      const start = (this.currentMoviePage - 1) * this.pagination.pageSize;
+      return this.sortedMovieRows.slice(start, start + this.pagination.pageSize);
+    },
+    movieTotal() {
+      return this.sortedMovieRows.length;
+    },
+    currentMoviePage() {
+      const pageSize = Math.max(1, Number(this.pagination.pageSize || 150));
+      const maxPage = Math.max(1, Math.ceil(this.movieTotal / pageSize));
+      return Math.min(Math.max(1, Number(this.pagination.page || 1)), maxPage);
+    },
+    moviePageRangeText() {
+      if (!this.movieTotal) return "0 / 0 条目";
+      const start = (this.currentMoviePage - 1) * this.pagination.pageSize + 1;
+      const end = Math.min(this.movieTotal, start + this.pagination.pageSize - 1);
+      return `${start}-${end} / ${this.movieTotal} 条目`;
     },
     tvTree() {
       const shows = new Map();
@@ -836,6 +855,26 @@ const app = createApp({
         showRatingField: true,
         folderPath: this.selectedItem.dir || this.selectedItem.sourcePath || "",
       });
+    },
+  },
+  watch: {
+    query() {
+      this.resetMoviePage();
+    },
+    filters: {
+      deep: true,
+      handler() {
+        this.resetMoviePage();
+      },
+    },
+    sortKey() {
+      this.resetMoviePage();
+    },
+    sortDirection() {
+      this.resetMoviePage();
+    },
+    activeModule() {
+      this.resetMoviePage();
     },
   },
   async mounted() {
@@ -1927,6 +1966,7 @@ const app = createApp({
       if (!library) return;
       this.activeModule = library.type || "movie";
       this.selectedLibrary = library;
+      this.resetMoviePage();
       this.items = [];
       this.selectedItem = null;
       this.selectedItemIds = [];
@@ -1951,6 +1991,19 @@ const app = createApp({
         }
       }, 1500);
     },
+    resetMoviePage() {
+      this.pagination.page = 1;
+    },
+    ensureMoviePageInRange() {
+      this.pagination.page = this.currentMoviePage;
+    },
+    handleMoviePageChange(page) {
+      this.pagination.page = page;
+    },
+    handleMoviePageSizeChange(size) {
+      this.pagination.pageSize = size;
+      this.resetMoviePage();
+    },
     async loadTasks(library, quiet = false) {
       try {
         const result = await this.api(`/api/tasks?libraryId=${encodeURIComponent(library.id)}`);
@@ -1963,6 +2016,63 @@ const app = createApp({
         if (!quiet) this.status = error.message;
       }
     },
+    normalizeItems(items) {
+      return (items || []).map((item) => this.normalizeItem(item));
+    },
+    normalizeItem(item) {
+      if (!item) return item;
+      const normalized = {
+        id: item.id,
+        libraryId: item.libraryId,
+        sourcePath: item.sourcePath,
+        kind: item.kind,
+        mediaType: item.mediaType,
+        path: item.path,
+        dir: item.dir,
+        fileName: item.fileName,
+        titleGuess: item.titleGuess,
+        yearGuess: item.yearGuess,
+        originalTitle: item.originalTitle,
+        original: item.original,
+        overview: item.overview,
+        runtime: item.runtime,
+        rating: item.rating,
+        showRating: item.showRating,
+        genres: Array.isArray(item.genres) ? item.genres.slice(0, 24) : [],
+        actors: Array.isArray(item.actors) ? item.actors.slice(0, 40) : [],
+        premiered: item.premiered,
+        dateAdded: item.dateAdded,
+        modTimeUnix: item.modTimeUnix,
+        nfoModTimeUnix: item.nfoModTimeUnix,
+        fileSize: item.fileSize,
+        fileSizeBytes: item.fileSizeBytes,
+        videoFormat: item.videoFormat,
+        audioCodec: item.audioCodec,
+        imdbId: item.imdbId,
+        showGuess: item.showGuess,
+        season: item.season,
+        episode: item.episode,
+        episodes: Array.isArray(item.episodes) ? item.episodes.slice(0, 12) : [],
+        hasNfo: item.hasNfo,
+        hasPoster: item.hasPoster,
+        hasFanart: item.hasFanart,
+        hasSubtitle: item.hasSubtitle,
+        matchedId: item.matchedId,
+        matchedName: item.matchedName,
+      };
+      normalized.searchText = [
+        normalized.titleGuess,
+        normalized.showGuess,
+        normalized.fileName,
+        normalized.path,
+        normalized.yearGuess,
+        normalized.matchedName,
+        normalized.imdbId,
+        normalized.matchedId,
+        ...(normalized.genres || []),
+      ].filter(Boolean).join(" ").toLowerCase();
+      return markRaw(normalized);
+    },
     async loadItems(library, quiet = false) {
       if (!quiet) {
         this.busy = true;
@@ -1971,10 +2081,11 @@ const app = createApp({
       const scrollAnchor = quiet ? this.captureMediaScrollAnchor() : null;
       try {
         const result = await this.api(`/api/items?libraryId=${encodeURIComponent(library.id)}`);
-        const loadedItems = result.items || [];
+        const loadedItems = this.normalizeItems(result.items || []);
         this.items = quiet && this.selectedTask && this.selectedTask.state === "running"
           ? this.mergeLoadedItems(this.items, loadedItems)
           : loadedItems;
+        this.ensureMoviePageInRange();
         if (scrollAnchor) {
           await this.$nextTick();
           this.restoreMediaScrollAnchor(scrollAnchor);
@@ -2237,7 +2348,7 @@ const app = createApp({
           method: "POST",
           body: JSON.stringify({ items: requests }),
         });
-        const updatedItems = result.items || [];
+        const updatedItems = this.normalizeItems(result.items || []);
         const byOldID = new Map(this.localRename.rows.map((row, index) => [row.itemId, updatedItems[index]]));
         const byNewID = new Map(updatedItems.map((item) => [item.id, item]));
         this.items = this.items.map((item) => byOldID.get(item.id) || byNewID.get(item.id) || item);
@@ -2500,15 +2611,17 @@ const app = createApp({
           body: JSON.stringify(body),
         });
         if (result.items && result.items.length) {
-          const byID = new Map(result.items.map((item) => [item.id, item]));
-          const byOldPath = new Map((result.renamePreviews || []).map((preview, index) => [preview.sourceFile, result.items[index]]));
+          const updatedItems = this.normalizeItems(result.items);
+          const byID = new Map(updatedItems.map((item) => [item.id, item]));
+          const byOldPath = new Map((result.renamePreviews || []).map((preview, index) => [preview.sourceFile, updatedItems[index]]));
           this.items = this.items.map((item) => byID.get(item.id) || byOldPath.get(item.path) || item);
           if (this.selectedItem && byID.has(this.selectedItem.id)) this.selectedItem = byID.get(this.selectedItem.id);
           if (this.selectedItem && byOldPath.has(this.selectedItem.path)) this.selectedItem = byOldPath.get(this.selectedItem.path);
         } else if (result.item) {
+          const updatedItem = this.normalizeItem(result.item);
           const oldPath = result.renamePreview ? result.renamePreview.sourceFile : "";
-          this.items = this.items.map((item) => (item.path === oldPath || item.path === result.item.path || item.id === result.item.id ? result.item : item));
-          this.selectedItem = result.item;
+          this.items = this.items.map((item) => (item.path === oldPath || item.path === updatedItem.path || item.id === updatedItem.id ? updatedItem : item));
+          this.selectedItem = updatedItem;
         }
         const scraped = result.movie || result.show || this.chooser.detail;
         if (scraped && this.selectedItem) {
@@ -2653,10 +2766,11 @@ const app = createApp({
             episodeFields: tv ? this.scraperFields("episode") : [],
           }),
         });
-        this.selectedItem = result.item;
         if (result.item) {
+          const updatedItem = this.normalizeItem(result.item);
+          this.selectedItem = updatedItem;
           const oldPath = result.renamePreview ? result.renamePreview.sourceFile : "";
-          this.items = this.items.map((item) => (item.id === result.item.id || item.path === oldPath ? result.item : item));
+          this.items = this.items.map((item) => (item.id === updatedItem.id || item.path === oldPath ? updatedItem : item));
         }
         const scraped = result.movie || result.show;
         this.rename.title = scraped.title;
@@ -2704,9 +2818,10 @@ const app = createApp({
           body: JSON.stringify(this.renamePreview),
         });
         if (result.item) {
+          const updatedItem = this.normalizeItem(result.item);
           const oldPath = this.renamePreview.sourceFile;
-          this.items = this.items.map((item) => (item.id === result.item.id || item.path === oldPath ? result.item : item));
-          this.selectedItem = result.item;
+          this.items = this.items.map((item) => (item.id === updatedItem.id || item.path === oldPath ? updatedItem : item));
+          this.selectedItem = updatedItem;
         }
         this.status = "重命名完成";
         this.renamePreview = null;

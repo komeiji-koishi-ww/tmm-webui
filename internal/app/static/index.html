@@ -89,37 +89,51 @@
                 <el-button link type="primary" @click="clearFilters">清空</el-button>
               </div>
 
-              <el-table
-                v-if="activeModule === 'movie'"
-                class="media-table"
-                :data="movieRows"
-                height="100%"
-                row-key="id"
-                highlight-current-row
-                :current-row-key="selectedItem ? selectedItem.id : ''"
-                empty-text="没有匹配条目"
-                @row-click="(row, _column, event) => selectItem(row, event)"
-                @row-contextmenu="(row, _column, event) => { event.preventDefault(); openContextMenu(event, 'movie', row); }"
-              >
-                <el-table-column prop="titleGuess" label="标题" min-width="320" show-overflow-tooltip resizable></el-table-column>
-                <el-table-column prop="yearGuess" label="年份" width="82" sortable></el-table-column>
-                <el-table-column label="评分" width="82" sortable>
-                  <template #default="{ row }">
-                    <span class="rating-text">{{ formatRating(row.rating) }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column label="添加日期" width="120" sortable>
-                  <template #default="{ row }">{{ formatDate(row.dateAdded) }}</template>
-                </el-table-column>
-                <el-table-column label="NFO / 图片 / 媒体信息" min-width="300">
-                  <template #default="{ row }">
-                    <el-tag size="small" :type="row.hasNfo ? 'success' : 'danger'">{{ row.hasNfo ? 'NFO' : '未匹配' }}</el-tag>
-                    <el-tag size="small" :type="row.hasPoster ? 'success' : 'warning'">Poster</el-tag>
-                    <el-tag size="small" :type="row.hasFanart ? 'success' : 'warning'">Fanart</el-tag>
-                    <span class="media-inline">{{ row.videoFormat || '-' }} · {{ row.audioCodec || '-' }}</span>
-                  </template>
-                </el-table-column>
-              </el-table>
+              <template v-if="activeModule === 'movie'">
+                <el-table
+                  class="media-table"
+                  :data="movieRows"
+                  height="100%"
+                  row-key="id"
+                  highlight-current-row
+                  :current-row-key="selectedItem ? selectedItem.id : ''"
+                  empty-text="没有匹配条目"
+                  @row-click="(row, _column, event) => selectItem(row, event)"
+                  @row-contextmenu="(row, _column, event) => { event.preventDefault(); openContextMenu(event, 'movie', row); }"
+                >
+                  <el-table-column prop="titleGuess" label="标题" min-width="320" show-overflow-tooltip resizable></el-table-column>
+                  <el-table-column prop="yearGuess" label="年份" width="82" sortable></el-table-column>
+                  <el-table-column label="评分" width="82" sortable>
+                    <template #default="{ row }">
+                      <span class="rating-text">{{ formatRating(row.rating) }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="添加日期" width="120" sortable>
+                    <template #default="{ row }">{{ formatDate(row.dateAdded) }}</template>
+                  </el-table-column>
+                  <el-table-column label="NFO / 图片 / 媒体信息" min-width="300">
+                    <template #default="{ row }">
+                      <el-tag size="small" :type="row.hasNfo ? 'success' : 'danger'">{{ row.hasNfo ? 'NFO' : '未匹配' }}</el-tag>
+                      <el-tag size="small" :type="row.hasPoster ? 'success' : 'warning'">Poster</el-tag>
+                      <el-tag size="small" :type="row.hasFanart ? 'success' : 'warning'">Fanart</el-tag>
+                      <span class="media-inline">{{ row.videoFormat || '-' }} · {{ row.audioCodec || '-' }}</span>
+                    </template>
+                  </el-table-column>
+                </el-table>
+                <div class="table-pagination">
+                  <span>{{ moviePageRangeText }}</span>
+                  <el-pagination
+                    small
+                    background
+                    layout="sizes, prev, pager, next"
+                    :page-sizes="pagination.pageSizes"
+                    :page-size="pagination.pageSize"
+                    :current-page="currentMoviePage"
+                    :total="movieTotal"
+                    @size-change="handleMoviePageSizeChange"
+                    @current-change="handleMoviePageChange"></el-pagination>
+                </div>
+              </template>
 
               <el-table
                 v-else
@@ -147,7 +161,7 @@
               </el-table>
 
               <footer class="library-footer">
-                <span>{{ visibleItems.length }} / {{ items.length }} 条目</span>
+                <span>{{ activeModule === 'movie' ? moviePageRangeText : visibleItems.length + ' / ' + items.length + ' 条目' }}</span>
                 <span>{{ selectedCountText }}</span>
                 <span>表格列支持拖拽调整宽度，右键可刮削、重命名、打开目录。</span>
               </footer>
