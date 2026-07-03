@@ -1,6 +1,10 @@
 package media
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestGuessTitleYear(t *testing.T) {
 	title, year := GuessTitleYear("Blade.Runner.2049.2017.2160p.UHD.BluRay.x265.mkv")
@@ -110,5 +114,105 @@ func TestShouldSkipDir(t *testing.T) {
 	}
 	if !ShouldSkipDir("/media/Plex Versions", "Plex Versions", "movie") {
 		t.Fatal("Plex Versions should be skipped")
+	}
+}
+
+func TestUnchangedCachedDirRequiresCurrentFileState(t *testing.T) {
+	root := t.TempDir()
+	movieDir := filepath.Join(root, "Movie One")
+	if err := os.Mkdir(movieDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	videoPath := filepath.Join(movieDir, "Movie.One.2024.mkv")
+	if err := os.WriteFile(videoPath, []byte("video"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(videoPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dirInfo, err := os.Stat(movieDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	library := Library{ID: "movies", Type: "movie", Path: root, Paths: []string{root}}
+	item := NewItemFromFileInfo(library, root, videoPath, info)
+	item.DirModTimeUnix = dirInfo.ModTime().UnixNano()
+	cache := buildExistingDirCache(map[string]Item{item.ID: item}, root)
+
+	items, ok := unchangedCachedDir(movieDir, dirInfo, cache, false)
+	if !ok || len(items) != 1 || items[0].ID != item.ID {
+		t.Fatalf("expected unchanged directory cache hit, ok=%v items=%d", ok, len(items))
+	}
+
+	if err := os.WriteFile(videoPath, []byte("changed video"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dirInfo, err = os.Stat(movieDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := unchangedCachedDir(movieDir, dirInfo, cache, false); ok {
+		t.Fatal("changed media file should invalidate unchanged directory cache")
+	}
+}
+
+func TestScanLibrarySkipsUnchangedDirAndFindsNewDir(t *testing.T) {
+	root := t.TempDir()
+	oldDir := filepath.Join(root, "Old Movie")
+	newDir := filepath.Join(root, "New Movie")
+	if err := os.Mkdir(oldDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	oldPath := filepath.Join(oldDir, "Old.Movie.2020.mkv")
+	if err := os.WriteFile(oldPath, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	oldInfo, err := os.Stat(oldPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldDirInfo, err := os.Stat(oldDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	library := Library{ID: "movies", Type: "movie", Path: root, Paths: []string{root}}
+	oldItem := NewItemFromFileInfo(library, root, oldPath, oldInfo)
+	oldItem.DirModTimeUnix = oldDirInfo.ModTime().UnixNano()
+
+	if err := os.Mkdir(newDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	newPath := filepath.Join(newDir, "New.Movie.2024.mkv")
+	if err := os.WriteFile(newPath, []byte("new"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var progressPaths []string
+	items, err := ScanLibraryWithOptions(library, ScanOptions{
+		Existing:          map[string]Item{oldItem.ID: oldItem},
+		SkipUnchangedDirs: true,
+	}, func(progress ScanProgress) {
+		progressPaths = append(progressPaths, progress.CurrentPath)
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("items = %d, want 2", len(items))
+	}
+	ids := map[string]bool{}
+	for _, item := range items {
+		ids[item.ID] = true
+	}
+	if !ids[oldItem.ID] || !ids[stableID(newPath)] {
+		t.Fatalf("scan did not keep old cached item and find new item: %#v", ids)
+	}
+	for _, path := range progressPaths {
+		if path == oldPath {
+			t.Fatal("unchanged cached media file should not be walked as a scan item")
+		}
 	}
 }

@@ -230,6 +230,7 @@ const app = createApp({
       selectedItem: null,
       selectedItemIds: [],
       lastSelectedTVItemId: "",
+      tvRangeAnchorItemId: "",
       keyboardModifiers: {
         shift: false,
         ctrl: false,
@@ -327,10 +328,11 @@ const app = createApp({
         entries: [],
       },
       query: "",
-      pagination: {
-        page: 1,
-        pageSize: 150,
-        pageSizes: [80, 150, 300, 600],
+      movieVirtual: {
+        scrollTop: 0,
+        viewportHeight: 720,
+        rowHeight: 42,
+        buffer: 12,
       },
       filters: [],
       filterEditor: {
@@ -531,8 +533,12 @@ const app = createApp({
     },
     movieGridStyle() {
       return {
-        gridTemplateColumns: this.layout.movieColumns.map((width) => `${width}px`).join(" "),
+        gridTemplateColumns: this.movieGridTemplate,
       };
+    },
+    movieGridTemplate() {
+      const columns = this.layout.movieColumns;
+      return `${columns[0]}px ${columns[1]}px ${columns[2]}px ${columns[3]}px minmax(${columns[4]}px, 1fr)`;
     },
     tvGridStyle() {
       return {
@@ -708,22 +714,26 @@ const app = createApp({
       return this.sortItems(this.visibleItems.slice());
     },
     movieRows() {
-      const start = (this.currentMoviePage - 1) * this.pagination.pageSize;
-      return this.sortedMovieRows.slice(start, start + this.pagination.pageSize);
+      return this.sortedMovieRows;
     },
     movieTotal() {
       return this.sortedMovieRows.length;
     },
-    currentMoviePage() {
-      const pageSize = Math.max(1, Number(this.pagination.pageSize || 150));
-      const maxPage = Math.max(1, Math.ceil(this.movieTotal / pageSize));
-      return Math.min(Math.max(1, Number(this.pagination.page || 1)), maxPage);
-    },
     moviePageRangeText() {
-      if (!this.movieTotal) return "0 / 0 条目";
-      const start = (this.currentMoviePage - 1) * this.pagination.pageSize + 1;
-      const end = Math.min(this.movieTotal, start + this.pagination.pageSize - 1);
-      return `${start}-${end} / ${this.movieTotal} 条目`;
+      return `${this.movieTotal} / ${this.items.length} 条目`;
+    },
+    movieVirtualTotalHeight() {
+      return this.movieTotal * this.movieVirtual.rowHeight;
+    },
+    virtualMovieRows() {
+      const rowHeight = this.movieVirtual.rowHeight;
+      const buffer = this.movieVirtual.buffer;
+      const start = Math.max(0, Math.floor(this.movieVirtual.scrollTop / rowHeight) - buffer);
+      const count = Math.ceil(this.movieVirtual.viewportHeight / rowHeight) + buffer * 2;
+      return this.movieRows.slice(start, start + count).map((item, offset) => {
+        const index = start + offset;
+        return { item, index, top: index * rowHeight };
+      });
     },
     tvTree() {
       const shows = new Map();
@@ -779,7 +789,7 @@ const app = createApp({
           rows.push({
             key: `season:${season.key}`,
             level: "season",
-            title: `   ${this.isSeasonExpanded(season.key) ? "▾" : "▸"} ${season.title}`,
+            title: `${this.isSeasonExpanded(season.key) ? "▾" : "▸"} ${season.title}`,
             year: firstSeasonItem.yearGuess || "-",
             rating: 0,
             dateAdded: firstSeasonItem.dateAdded || "",
@@ -791,7 +801,7 @@ const app = createApp({
             rows.push({
               key: `episode:${item.id}`,
               level: "episode",
-              title: `      ${this.itemSeasonText(item)}`,
+              title: this.itemSeasonText(item),
               year: item.yearGuess || "-",
               rating: this.tvEpisodeRating(item),
               dateAdded: item.dateAdded || "",
@@ -1959,6 +1969,7 @@ const app = createApp({
       this.sortDirection = "desc";
       this.selectedItemIds = [];
       this.lastSelectedTVItemId = "";
+      this.tvRangeAnchorItemId = "";
       const first = this.filteredLibraries[0];
       if (first) {
         await this.selectLibrary(first);
@@ -1968,6 +1979,7 @@ const app = createApp({
         this.selectedItem = null;
         this.selectedItemIds = [];
         this.lastSelectedTVItemId = "";
+        this.tvRangeAnchorItemId = "";
         this.selectedEntity = null;
         this.status = `未配置${this.moduleTitle}数据源`;
       }
@@ -2066,6 +2078,7 @@ const app = createApp({
             this.selectedItem = null;
             this.selectedItemIds = [];
             this.lastSelectedTVItemId = "";
+            this.tvRangeAnchorItemId = "";
           }
         }
         this.status = "数据源已移除";
@@ -2084,6 +2097,7 @@ const app = createApp({
       this.selectedItem = null;
       this.selectedItemIds = [];
       this.lastSelectedTVItemId = "";
+      this.tvRangeAnchorItemId = "";
       this.selectedEntity = null;
       this.candidates = [];
       this.renamePreview = null;
@@ -2105,17 +2119,26 @@ const app = createApp({
       }, 1500);
     },
     resetMoviePage() {
-      this.pagination.page = 1;
+      this.movieVirtual.scrollTop = 0;
+      this.$nextTick(() => {
+        const scroller = this.movieScrollerElement();
+        if (scroller) {
+          scroller.scrollTop = 0;
+          this.movieVirtual.viewportHeight = scroller.clientHeight || this.movieVirtual.viewportHeight;
+        }
+      });
     },
     ensureMoviePageInRange() {
-      this.pagination.page = this.currentMoviePage;
+      this.handleMovieVirtualScroll();
     },
-    handleMoviePageChange(page) {
-      this.pagination.page = page;
+    movieScrollerElement() {
+      return this.$refs.movieScroller && (this.$refs.movieScroller.$el || this.$refs.movieScroller);
     },
-    handleMoviePageSizeChange(size) {
-      this.pagination.pageSize = size;
-      this.resetMoviePage();
+    handleMovieVirtualScroll() {
+      const scroller = this.movieScrollerElement();
+      if (!scroller) return;
+      this.movieVirtual.scrollTop = scroller.scrollTop || 0;
+      this.movieVirtual.viewportHeight = scroller.clientHeight || this.movieVirtual.viewportHeight;
     },
     async loadTasks(library, quiet = false) {
       try {
@@ -2225,6 +2248,7 @@ const app = createApp({
       return merged;
     },
     mediaScrollElement() {
+      if (this.activeModule === "movie") return this.movieScrollerElement();
       const ref = this.$refs.mediaScroller;
       return Array.isArray(ref) ? ref.find(Boolean) : ref;
     },
@@ -2261,6 +2285,7 @@ const app = createApp({
       const isTV = item.kind === "tvshow";
       const rangeSelect = isTV && this.isShiftSelection(event);
       const multiToggle = isTV && this.isToggleSelection(event);
+      if (isTV && event) this.suppressBrowserTextSelection(event);
       if (rangeSelect) {
         const range = this.tvSelectionRange(item.id);
         this.selectedItemIds = range.length ? range : [item.id];
@@ -2270,9 +2295,11 @@ const app = createApp({
         else selected.add(item.id);
         this.selectedItemIds = [...selected];
         this.lastSelectedTVItemId = item.id;
+        this.tvRangeAnchorItemId = item.id;
       } else {
         this.selectedItemIds = [item.id];
         this.lastSelectedTVItemId = isTV ? item.id : "";
+        this.tvRangeAnchorItemId = isTV ? item.id : "";
       }
       this.selectedItem = item;
       this.selectedEntity = { kind: item.kind === "tvshow" ? "episode" : "movie", payload: item };
@@ -2287,6 +2314,11 @@ const app = createApp({
       this.scrapeSearch.query = item.titleGuess || item.showGuess || "";
       this.scrapeSearch.year = item.yearGuess || "";
       this.renamePreview = null;
+    },
+    suppressBrowserTextSelection(event = null) {
+      if (event && event.cancelable) event.preventDefault();
+      const selection = window.getSelection ? window.getSelection() : null;
+      if (selection && selection.removeAllRanges) selection.removeAllRanges();
     },
     isShiftSelection(event = null) {
       return !!((event && event.shiftKey) || this.keyboardModifiers.shift);
@@ -2308,6 +2340,11 @@ const app = createApp({
     rememberTVPointerEvent(event) {
       this.lastTVPointerEvent = event || null;
       this.updateKeyboardModifiers(event);
+      if (event && event.shiftKey) this.suppressBrowserTextSelection(event);
+    },
+    prepareTVCellPointer(event) {
+      this.rememberTVPointerEvent(event);
+      if (event) this.suppressBrowserTextSelection(event);
     },
     tvClickEvent(event = null) {
       return event || this.lastTVPointerEvent || window.event || null;
@@ -2320,28 +2357,7 @@ const app = createApp({
       this.lastTVClickAt = now;
       return false;
     },
-    tvRowFromEvent(event) {
-      const target = event && event.target;
-      const tableRow = target && target.closest ? target.closest("tr") : null;
-      if (!tableRow) return null;
-      const key = tableRow.dataset ? tableRow.dataset.rowKey : "";
-      if (key) {
-        const match = this.tvTreeRows.find((row) => row.key === key);
-        if (match) return match;
-      }
-      const rows = Array.from(tableRow.parentElement ? tableRow.parentElement.querySelectorAll("tr") : []);
-      const index = rows.indexOf(tableRow);
-      return index >= 0 ? this.tvTreeRows[index] || null : null;
-    },
-    handleTVTableNativeClick(event) {
-      const row = this.tvRowFromEvent(event);
-      if (!row) return;
-      this.activateTVRow(row, event);
-    },
     handleTVTableRowClick(row, _column, event) {
-      this.activateTVRow(row, event);
-    },
-    handleTVTableCellClick(row, _column, _cell, event) {
       this.activateTVRow(row, event);
     },
     handleTVTitleClick(row, event) {
@@ -2349,6 +2365,7 @@ const app = createApp({
     },
     activateTVRow(row, event = null) {
       if (!row) return;
+      if (event) this.suppressBrowserTextSelection(event);
       if (this.shouldSkipTVClick(row)) return;
       const clickEvent = this.tvClickEvent(event);
       this.updateKeyboardModifiers(clickEvent);
@@ -2384,7 +2401,7 @@ const app = createApp({
     tvSelectionRange(targetId) {
       const items = this.visibleTVEpisodeItems();
       if (!items.length) return [];
-      const anchorId = this.lastSelectedTVItemId || (this.selectedItem && this.selectedItem.kind === "tvshow" ? this.selectedItem.id : "");
+      const anchorId = this.tvRangeAnchorItemId || this.lastSelectedTVItemId || (this.selectedItem && this.selectedItem.kind === "tvshow" ? this.selectedItem.id : "");
       const targetIndex = items.findIndex((item) => item.id === targetId);
       const anchorIndex = items.findIndex((item) => item.id === anchorId);
       if (targetIndex < 0) return [targetId];
@@ -2557,6 +2574,7 @@ const app = createApp({
         this.items = this.items.map((item) => byOldID.get(item.id) || byNewID.get(item.id) || item);
         this.selectedItemIds = updatedItems.map((item) => item.id);
         this.lastSelectedTVItemId = updatedItems[0] ? updatedItems[0].id : "";
+        this.tvRangeAnchorItemId = this.lastSelectedTVItemId;
         if (this.selectedItem) {
           this.selectedItem = byOldID.get(this.selectedItem.id) || byNewID.get(this.selectedItem.id) || updatedItems[0] || this.selectedItem;
         } else {
@@ -2864,6 +2882,7 @@ const app = createApp({
       if (kind === "show") {
         this.selectedItemIds = [];
         this.lastSelectedTVItemId = "";
+        this.tvRangeAnchorItemId = "";
         this.selectedEntity = { kind: "show", payload };
         const firstSeason = payload.seasons[0];
         if (firstSeason && firstSeason.items[0]) {
@@ -2874,6 +2893,7 @@ const app = createApp({
       if (kind === "season" && payload.items[0]) {
         this.selectedItemIds = [];
         this.lastSelectedTVItemId = "";
+        this.tvRangeAnchorItemId = "";
         this.selectItem(payload.items[0]);
         this.selectedEntity = { kind: "season", payload };
       }

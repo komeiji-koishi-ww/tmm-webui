@@ -112,6 +112,7 @@ type Item struct {
 	Premiered        string           `json:"premiered,omitempty"`
 	DateAdded        string           `json:"dateAdded,omitempty"`
 	ModTimeUnix      int64            `json:"modTimeUnix,omitempty"`
+	DirModTimeUnix   int64            `json:"dirModTimeUnix,omitempty"`
 	NFOModTimeUnix   int64            `json:"nfoModTimeUnix,omitempty"`
 	FileSize         string           `json:"fileSize,omitempty"`
 	FileSizeBytes    int64            `json:"fileSizeBytes,omitempty"`
@@ -219,9 +220,10 @@ type ScanProgress struct {
 }
 
 type ScanOptions struct {
-	Existing       map[string]Item
-	Workers        int
-	ProbeMediaInfo bool
+	Existing          map[string]Item
+	Workers           int
+	ProbeMediaInfo    bool
+	SkipUnchangedDirs bool
 }
 
 type scanJob struct {
@@ -282,6 +284,7 @@ func scanLibraryWithOptions(library Library, options ScanOptions, progress func(
 	library.Paths = NormalizePaths(library)
 	for _, source := range library.Paths {
 		root := filepath.Clean(source)
+		dirCache := buildExistingDirCache(options.Existing, root)
 		jobs := make(chan scanJob, options.Workers*2)
 		results := make(chan Item, options.Workers*2)
 		var wg sync.WaitGroup
@@ -329,6 +332,19 @@ func scanLibraryWithOptions(library Library, options ScanOptions, progress func(
 				if ShouldSkipDir(path, info.Name(), library.Type) && path != root {
 					return filepath.SkipDir
 				}
+				if options.SkipUnchangedDirs && path != root {
+					if cachedItems, ok := unchangedCachedDir(path, info, dirCache, options.ProbeMediaInfo); ok {
+						for _, item := range cachedItems {
+							collect(item)
+						}
+						found += len(cachedItems)
+						collected += len(cachedItems)
+						if progress != nil && len(cachedItems) > 0 {
+							progress(ScanProgress{SourcePath: root, CurrentPath: path, VisitedFiles: visited, FoundItems: collected})
+						}
+						return filepath.SkipDir
+					}
+				}
 				return nil
 			}
 			visited++
@@ -341,10 +357,17 @@ func scanLibraryWithOptions(library Library, options ScanOptions, progress func(
 			found++
 			id := stableID(path)
 			if existing, ok := options.Existing[id]; ok && itemUnchanged(existing, path, info, options.ProbeMediaInfo) {
+				updated := addDirectoryModTime(existing, filepath.Dir(path))
+				itemWasUpdated := updated.DirModTimeUnix != existing.DirModTimeUnix
+				existing = updated
 				collect(existing)
 				collected++
-				if progress != nil && found%25 == 0 {
-					progress(ScanProgress{SourcePath: root, CurrentPath: path, VisitedFiles: visited, FoundItems: found})
+				if progress != nil && (itemWasUpdated || found%25 == 0) {
+					if itemWasUpdated {
+						progress(ScanProgress{SourcePath: root, CurrentPath: path, VisitedFiles: visited, FoundItems: found, Item: &existing})
+					} else {
+						progress(ScanProgress{SourcePath: root, CurrentPath: path, VisitedFiles: visited, FoundItems: found})
+					}
 				}
 				return nil
 			}
@@ -368,6 +391,82 @@ func scanLibraryWithOptions(library Library, options ScanOptions, progress func(
 		}
 	}
 	return nil
+}
+
+type cachedDir struct {
+	items       []Item
+	modTimeUnix int64
+	hasChildDir bool
+	incomplete  bool
+}
+
+func buildExistingDirCache(existing map[string]Item, root string) map[string]cachedDir {
+	cache := map[string]cachedDir{}
+	for _, item := range existing {
+		if item.Path == "" || item.Dir == "" {
+			continue
+		}
+		dir := filepath.Clean(item.Dir)
+		if !pathWithinRoot(dir, root) {
+			continue
+		}
+		entry := cache[dir]
+		if item.DirModTimeUnix == 0 {
+			entry.incomplete = true
+			cache[dir] = entry
+			continue
+		}
+		entry.items = append(entry.items, item)
+		if entry.modTimeUnix == 0 {
+			entry.modTimeUnix = item.DirModTimeUnix
+		} else if entry.modTimeUnix != item.DirModTimeUnix {
+			entry.incomplete = true
+		}
+		cache[dir] = entry
+	}
+	for dir := range cache {
+		parent := filepath.Dir(dir)
+		for parent != "." && parent != dir && pathWithinRoot(parent, root) {
+			if entry, ok := cache[parent]; ok {
+				entry.hasChildDir = true
+				cache[parent] = entry
+			}
+			if parent == root {
+				break
+			}
+			parent = filepath.Dir(parent)
+		}
+	}
+	return cache
+}
+
+func unchangedCachedDir(path string, info os.FileInfo, cache map[string]cachedDir, requireMediaInfo bool) ([]Item, bool) {
+	entry, ok := cache[filepath.Clean(path)]
+	if !ok || entry.incomplete || entry.hasChildDir || len(entry.items) == 0 {
+		return nil, false
+	}
+	if info == nil || info.ModTime().UnixNano() != entry.modTimeUnix {
+		return nil, false
+	}
+	items := append([]Item(nil), entry.items...)
+	sort.Slice(items, func(i, j int) bool { return items[i].Path < items[j].Path })
+	for _, item := range items {
+		fileInfo, err := os.Stat(item.Path)
+		if err != nil || !itemUnchanged(item, item.Path, fileInfo, requireMediaInfo) {
+			return nil, false
+		}
+	}
+	return items, true
+}
+
+func pathWithinRoot(path string, root string) bool {
+	path = filepath.Clean(path)
+	root = filepath.Clean(root)
+	if path == root {
+		return true
+	}
+	rel, err := filepath.Rel(root, path)
+	return err == nil && rel != "." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)) && rel != ".."
 }
 
 func defaultScanWorkers() int {
@@ -427,26 +526,27 @@ func newItem(library Library, sourcePath string, path string, fileName string, i
 	dir := filepath.Dir(path)
 	fileSizeBytes, fileSize, videoFormat, audioCodec := LightweightMediaInfo(path, info)
 	item := Item{
-		ID:            stableID(path),
-		LibraryID:     library.ID,
-		SourcePath:    sourcePath,
-		Kind:          library.Type,
-		Path:          path,
-		Dir:           dir,
-		FileName:      fileName,
-		TitleGuess:    title,
-		YearGuess:     year,
-		DateAdded:     FileDate(info).UTC().Format(time.RFC3339),
-		ModTimeUnix:   fileModTimeUnix(info),
-		FileSize:      fileSize,
-		FileSizeBytes: fileSizeBytes,
-		VideoFormat:   videoFormat,
-		AudioCodec:    audioCodec,
-		MediaType:     ClassifyMediaFile(path),
-		HasNFO:        exists(filepath.Join(dir, "movie.nfo")) || exists(strings.TrimSuffix(path, filepath.Ext(path))+".nfo"),
-		HasPoster:     hasAny(dir, []string{"poster.jpg", "folder.jpg", strings.TrimSuffix(fileName, filepath.Ext(fileName)) + "-poster.jpg"}),
-		HasFanart:     hasAny(dir, []string{"fanart.jpg", "backdrop.jpg", strings.TrimSuffix(fileName, filepath.Ext(fileName)) + "-fanart.jpg"}),
-		HasSubtitle:   hasSubtitle(path),
+		ID:             stableID(path),
+		LibraryID:      library.ID,
+		SourcePath:     sourcePath,
+		Kind:           library.Type,
+		Path:           path,
+		Dir:            dir,
+		FileName:       fileName,
+		TitleGuess:     title,
+		YearGuess:      year,
+		DateAdded:      FileDate(info).UTC().Format(time.RFC3339),
+		ModTimeUnix:    fileModTimeUnix(info),
+		DirModTimeUnix: dirModTimeUnix(dir),
+		FileSize:       fileSize,
+		FileSizeBytes:  fileSizeBytes,
+		VideoFormat:    videoFormat,
+		AudioCodec:     audioCodec,
+		MediaType:      ClassifyMediaFile(path),
+		HasNFO:         exists(filepath.Join(dir, "movie.nfo")) || exists(strings.TrimSuffix(path, filepath.Ext(path))+".nfo"),
+		HasPoster:      hasAny(dir, []string{"poster.jpg", "folder.jpg", strings.TrimSuffix(fileName, filepath.Ext(fileName)) + "-poster.jpg"}),
+		HasFanart:      hasAny(dir, []string{"fanart.jpg", "backdrop.jpg", strings.TrimSuffix(fileName, filepath.Ext(fileName)) + "-fanart.jpg"}),
+		HasSubtitle:    hasSubtitle(path),
 	}
 	if library.Type == "tvshow" {
 		item.ShowGuess = GuessShowName(sourcePath, path)
@@ -527,6 +627,22 @@ func fileModTimeUnix(info os.FileInfo) int64 {
 		return 0
 	}
 	return info.ModTime().UnixNano()
+}
+
+func dirModTimeUnix(dir string) int64 {
+	info, err := os.Stat(dir)
+	if err != nil {
+		return 0
+	}
+	return info.ModTime().UnixNano()
+}
+
+func addDirectoryModTime(item Item, dir string) Item {
+	if item.DirModTimeUnix != 0 {
+		return item
+	}
+	item.DirModTimeUnix = dirModTimeUnix(dir)
+	return item
 }
 
 func fileSizeBytes(info os.FileInfo) int64 {

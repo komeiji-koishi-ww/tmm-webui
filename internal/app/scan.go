@@ -77,8 +77,9 @@ func (s *Server) runScanTask(taskID string, library media.Library) {
 	}
 	s.mu.Unlock()
 	currentIDs, err := media.ScanLibraryIDsWithOptions(library, media.ScanOptions{
-		Existing:       existing,
-		ProbeMediaInfo: scanMediaInfoEnabled(),
+		Existing:          existing,
+		ProbeMediaInfo:    scanMediaInfoEnabled(),
+		SkipUnchangedDirs: scanSkipUnchangedDirsEnabled(),
 	}, func(progress media.ScanProgress) {
 		s.mu.Lock()
 		if task := s.tasks[taskID]; task != nil {
@@ -159,6 +160,17 @@ func releaseScanMemory() {
 
 func scanMediaInfoEnabled() bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("TMMWEB_SCAN_MEDIAINFO"))) {
+	case "", "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return true
+	}
+}
+
+func scanSkipUnchangedDirsEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("TMMWEB_SCAN_SKIP_UNCHANGED_DIRS"))) {
 	case "", "1", "true", "yes", "on":
 		return true
 	case "0", "false", "no", "off":

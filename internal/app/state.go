@@ -100,6 +100,7 @@ func itemChanged(a media.Item, b media.Item) bool {
 		a.Rating != b.Rating ||
 		a.ShowRating != b.ShowRating ||
 		a.ModTimeUnix != b.ModTimeUnix ||
+		a.DirModTimeUnix != b.DirModTimeUnix ||
 		a.NFOModTimeUnix != b.NFOModTimeUnix ||
 		a.FileSize != b.FileSize ||
 		a.FileSizeBytes != b.FileSizeBytes ||
