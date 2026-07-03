@@ -25,6 +25,7 @@ func (s *Server) Routes() http.Handler {
 
 	// Metadata, artwork and rename workflows.
 	mux.HandleFunc("/api/artwork", s.handleArtwork)
+	mux.HandleFunc("/api/tmdb-image", s.handleTMDBImage)
 	mux.HandleFunc("/api/search", s.handleSearch)
 	mux.HandleFunc("/api/metadata", s.handleMetadata)
 	mux.HandleFunc("/api/scrape", s.handleScrape)

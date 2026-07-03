@@ -182,9 +182,10 @@ select {
 
 .main-layout {
   display: grid;
-  grid-template-columns: minmax(680px, 1fr) 450px;
+  grid-template-columns: minmax(580px, 1fr) 6px minmax(330px, 450px);
   gap: 0;
   height: calc(100vh - 68px);
+  min-height: 0;
   padding: 0;
   overflow: hidden;
 }
@@ -195,7 +196,8 @@ select {
 
 .library-pane {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto 32px;
+  grid-template-rows: auto auto minmax(0, 1fr) 32px;
+  min-height: 0;
   min-width: 0;
   padding: 18px 14px 10px 22px;
 }
@@ -234,11 +236,39 @@ select {
   margin: 0 0 10px;
 }
 
+.table-shell {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  min-width: 0;
+}
+
+.table-shell.with-pagination {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
 .media-table {
+  min-height: 0;
+  height: 100%;
   overflow: hidden;
   border-radius: 10px;
   background: var(--app-surface);
   box-shadow: var(--app-shadow);
+}
+
+.media-table .el-table__inner-wrapper,
+.media-table .el-table__body-wrapper,
+.media-table .el-scrollbar,
+.media-table .el-scrollbar__wrap {
+  min-height: 0;
+}
+
+.media-table .el-scrollbar__wrap {
+  overflow-y: auto !important;
+}
+
+.media-table .el-table__cell {
+  user-select: none;
 }
 
 .media-table .el-table__header th {
@@ -254,6 +284,11 @@ select {
 
 .media-table .el-table__row.current-row > td.el-table__cell {
   background: #eaf8f5;
+}
+
+.media-table .el-table__row.is-tv-selected > td.el-table__cell,
+.media-table .el-table__row.is-tv-selected.current-row > td.el-table__cell {
+  background: #dff5f1;
 }
 
 .media-table .el-tag {
@@ -313,15 +348,45 @@ select {
   white-space: nowrap;
 }
 
+.layout-resizer {
+  position: relative;
+  min-height: 0;
+  cursor: col-resize;
+  background: linear-gradient(90deg, transparent 0, transparent 2px, #d9e1eb 2px, #d9e1eb 4px, transparent 4px);
+}
+
+.layout-resizer::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 46px;
+  border-radius: 999px;
+  background: #b8c4d4;
+  content: "";
+  transform: translate(-50%, -50%);
+}
+
+.layout-resizer:hover::after {
+  background: var(--app-primary);
+}
+
 .inspector-pane {
   display: flex;
+  height: 100%;
+  min-height: 0;
   min-width: 0;
   flex-direction: column;
   gap: 14px;
   padding: 18px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   background: var(--app-surface);
   box-shadow: -12px 0 32px rgba(24, 39, 58, 0.04);
+}
+
+.inspector-pane > * {
+  flex: 0 0 auto;
 }
 
 .identity-block {
@@ -347,8 +412,7 @@ select {
   height: 172px;
 }
 
-.poster-frame img,
-.fanart-frame img {
+.poster-frame img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -384,25 +448,39 @@ select {
 }
 
 .overview-block p {
-  max-height: 130px;
   margin: 0;
-  overflow: auto;
+  overflow: visible;
   color: #263241;
   font-size: 14px;
   line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .fanart-frame {
   display: grid;
   width: 100%;
-  height: 150px;
+  min-height: 130px;
   flex: 0 0 auto;
   place-items: center;
   overflow: hidden;
   border-radius: var(--app-radius);
-  background: #20344a;
+  background: #101928;
   color: #789;
   font-size: 12px;
+}
+
+.fanart-frame img {
+  grid-area: 1 / 1;
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 220px;
+  object-fit: contain;
+}
+
+.fanart-frame span {
+  grid-area: 1 / 1;
 }
 
 .folder-path {
@@ -566,6 +644,8 @@ select {
 }
 
 .scrape-dialog .el-dialog__body {
+  max-height: calc(100vh - 170px);
+  overflow: auto;
   padding-top: 0;
 }
 
@@ -614,10 +694,27 @@ select {
 }
 
 .scrape-fanart {
+  display: grid;
   height: 178px;
   margin-bottom: 20px;
+  place-items: center;
+  overflow: hidden;
   border-radius: var(--app-radius);
-  background: #20344a;
+  background: #101928;
+  color: #789;
+  font-size: 12px;
+}
+
+.scrape-fanart img {
+  grid-area: 1 / 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.scrape-fanart span {
+  grid-area: 1 / 1;
 }
 
 .scrape-identity {
@@ -782,6 +879,10 @@ select {
   .main-layout {
     display: block;
     height: auto;
+  }
+
+  .layout-resizer {
+    display: none;
   }
 
   .library-pane {

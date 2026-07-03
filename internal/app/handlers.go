@@ -475,6 +475,34 @@ func (s *Server) handleArtwork(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, path)
 }
 
+func (s *Server) handleTMDBImage(w http.ResponseWriter, r *http.Request) {
+	imagePath := strings.TrimSpace(r.URL.Query().Get("path"))
+	size := strings.TrimSpace(r.URL.Query().Get("size"))
+	if imagePath == "" {
+		http.Error(w, "path is required", http.StatusBadRequest)
+		return
+	}
+	allowedSizes := map[string]bool{
+		"w92": true, "w154": true, "w185": true, "w300": true, "w342": true,
+		"w500": true, "w780": true, "w1280": true, "original": true,
+	}
+	if size == "" {
+		size = "w342"
+	}
+	if !allowedSizes[size] {
+		http.Error(w, "invalid image size", http.StatusBadRequest)
+		return
+	}
+	data, err := s.tmdbClient().DownloadImageSized(imagePath, size)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("Content-Type", http.DetectContentType(data))
+	_, _ = w.Write(data)
+}
+
 func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {

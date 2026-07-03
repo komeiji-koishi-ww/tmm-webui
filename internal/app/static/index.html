@@ -61,7 +61,7 @@
             <el-button v-if="selectedScanning" @click="scan">停止扫描</el-button>
           </section>
 
-          <el-main class="main-layout">
+          <el-main ref="workbench" class="main-layout" :style="workbenchStyle">
             <section class="library-pane">
               <div class="toolbar-card">
                 <el-input v-model="query" clearable placeholder="搜索标题、年份、路径、TMDb / IMDb ID" :prefix-icon="Search"></el-input>
@@ -89,29 +89,31 @@
                 <el-button link type="primary" @click="clearFilters">清空</el-button>
               </div>
 
-              <template v-if="activeModule === 'movie'">
+              <section v-if="activeModule === 'movie'" class="table-shell with-pagination">
                 <el-table
                   class="media-table"
                   :data="movieRows"
                   height="100%"
+                  border
                   row-key="id"
                   highlight-current-row
                   :current-row-key="selectedItem ? selectedItem.id : ''"
                   empty-text="没有匹配条目"
+                  @header-dragend="(newWidth, oldWidth, column) => handleTableHeaderDragend('movie', newWidth, oldWidth, column)"
                   @row-click="(row, _column, event) => selectItem(row, event)"
                   @row-contextmenu="(row, _column, event) => { event.preventDefault(); openContextMenu(event, 'movie', row); }"
                 >
-                  <el-table-column prop="titleGuess" label="标题" min-width="320" show-overflow-tooltip resizable></el-table-column>
-                  <el-table-column prop="yearGuess" label="年份" width="82" sortable></el-table-column>
-                  <el-table-column label="评分" width="82" sortable>
+                  <el-table-column prop="titleGuess" column-key="title" label="标题" :width="layout.movieColumns[0]" min-width="180" show-overflow-tooltip resizable></el-table-column>
+                  <el-table-column prop="yearGuess" column-key="year" label="年份" :width="layout.movieColumns[1]" min-width="70" sortable resizable></el-table-column>
+                  <el-table-column column-key="rating" label="评分" :width="layout.movieColumns[2]" min-width="70" sortable resizable>
                     <template #default="{ row }">
                       <span class="rating-text">{{ formatRating(row.rating) }}</span>
                     </template>
                   </el-table-column>
-                  <el-table-column label="添加日期" width="120" sortable>
+                  <el-table-column column-key="dateAdded" label="添加日期" :width="layout.movieColumns[3]" min-width="100" sortable resizable>
                     <template #default="{ row }">{{ formatDate(row.dateAdded) }}</template>
                   </el-table-column>
-                  <el-table-column label="NFO / 图片 / 媒体信息" min-width="300">
+                  <el-table-column column-key="status" label="NFO / 图片 / 媒体信息" :width="layout.movieColumns[4]" min-width="220" resizable>
                     <template #default="{ row }">
                       <el-tag size="small" :type="row.hasNfo ? 'success' : 'danger'">{{ row.hasNfo ? 'NFO' : '未匹配' }}</el-tag>
                       <el-tag size="small" :type="row.hasPoster ? 'success' : 'warning'">Poster</el-tag>
@@ -133,32 +135,38 @@
                     @size-change="handleMoviePageSizeChange"
                     @current-change="handleMoviePageChange"></el-pagination>
                 </div>
-              </template>
+              </section>
 
-              <el-table
-                v-else
-                class="media-table"
-                :data="tvTreeRows"
-                height="100%"
-                row-key="key"
-                empty-text="没有匹配条目"
-                @row-click="handleTVTableRowClick"
-                @row-contextmenu="handleTVTableContextMenu"
-              >
-                <el-table-column prop="title" label="标题 / 季 / 集" min-width="360" show-overflow-tooltip resizable>
-                  <template #default="{ row }">
-                    <span :class="['tree-title', row.level]">{{ row.title }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="year" label="年份" width="82"></el-table-column>
-                <el-table-column label="评分" width="82">
-                  <template #default="{ row }">{{ formatRating(row.rating) }}</template>
-                </el-table-column>
-                <el-table-column label="添加日期" width="120">
-                  <template #default="{ row }">{{ formatDate(row.dateAdded) }}</template>
-                </el-table-column>
-                <el-table-column prop="status" label="NFO / 图片 / 媒体信息" min-width="300" show-overflow-tooltip></el-table-column>
-              </el-table>
+              <section v-else class="table-shell">
+                <el-table
+                  class="media-table"
+                  :data="tvTreeRows"
+                  height="100%"
+                  border
+                  row-key="key"
+                  highlight-current-row
+                  :current-row-key="selectedItem ? 'episode:' + selectedItem.id : ''"
+                  :row-class-name="tvRowClassName"
+                  empty-text="没有匹配条目"
+                  @header-dragend="(newWidth, oldWidth, column) => handleTableHeaderDragend('tvshow', newWidth, oldWidth, column)"
+                  @row-click="handleTVTableRowClick"
+                  @row-contextmenu="handleTVTableContextMenu"
+                >
+                  <el-table-column prop="title" column-key="title" label="标题 / 季 / 集" :width="layout.tvColumns[0]" min-width="200" show-overflow-tooltip resizable>
+                    <template #default="{ row }">
+                      <span :class="['tree-title', row.level]" @click.stop="handleTVTitleClick(row, $event)">{{ row.title }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="year" column-key="year" label="年份" :width="layout.tvColumns[1]" min-width="70" resizable></el-table-column>
+                  <el-table-column column-key="rating" label="评分" :width="layout.tvColumns[2]" min-width="70" resizable>
+                    <template #default="{ row }">{{ formatRating(row.rating) }}</template>
+                  </el-table-column>
+                  <el-table-column column-key="dateAdded" label="添加日期" :width="layout.tvColumns[3]" min-width="100" resizable>
+                    <template #default="{ row }">{{ formatDate(row.dateAdded) }}</template>
+                  </el-table-column>
+                  <el-table-column prop="status" column-key="status" label="NFO / 图片 / 媒体信息" :width="layout.tvColumns[4]" min-width="220" show-overflow-tooltip resizable></el-table-column>
+                </el-table>
+              </section>
 
               <footer class="library-footer">
                 <span>{{ activeModule === 'movie' ? moviePageRangeText : visibleItems.length + ' / ' + items.length + ' 条目' }}</span>
@@ -166,6 +174,8 @@
                 <span>表格列支持拖拽调整宽度，右键可刮削、重命名、打开目录。</span>
               </footer>
             </section>
+
+            <div class="layout-resizer" title="拖动调整列表和详情宽度" @pointerdown="startWorkbenchResize"></div>
 
             <aside class="inspector-pane">
               <template v-if="selectedSummary">
@@ -187,7 +197,7 @@
                   <el-descriptions-item label="添加日期">{{ formatDate(selectedSummary.dateAdded) }}</el-descriptions-item>
                   <el-descriptions-item label="TMDb">{{ selectedSummary.matchedId || '-' }}</el-descriptions-item>
                   <el-descriptions-item label="IMDb">{{ selectedSummary.imdbId || '-' }}</el-descriptions-item>
-                  <el-descriptions-item label="类型">{{ selectedSummary.genres.length ? selectedSummary.genres.join(' / ') : '-' }}</el-descriptions-item>
+                  <el-descriptions-item label="类型">{{ selectedSummary.genres.length ? localizedGenres(selectedSummary.genres).join(' / ') : '-' }}</el-descriptions-item>
                   <el-descriptions-item v-if="selectedSummary.showMediaFields" label="视频">{{ selectedSummary.videoFormat || '-' }}</el-descriptions-item>
                   <el-descriptions-item v-if="selectedSummary.showMediaFields" label="音频">{{ selectedSummary.audioCodec || '-' }}</el-descriptions-item>
                   <el-descriptions-item v-if="selectedSummary.showMediaFields" label="大小">{{ selectedSummary.fileSize || '-' }}</el-descriptions-item>
@@ -204,8 +214,8 @@
                 </section>
 
                 <div class="fanart-frame">
+                  <span>Fanart</span>
                   <img v-if="selectedSummary.fanart" :key="selectedSummary.fanart" :src="selectedSummary.fanart" alt="" @load="showLoadedImage" @error="hideBrokenImage" />
-                  <span v-else>Fanart</span>
                 </div>
                 <div class="folder-path">
                   <strong>文件夹</strong>
@@ -423,10 +433,13 @@
               <el-alert v-if="chooser.error" :title="chooser.error" type="error" show-icon></el-alert>
               <el-skeleton v-if="chooser.loading" animated :rows="8"></el-skeleton>
               <template v-else-if="chooser.detail">
-                <div class="scrape-fanart"></div>
+                <div class="scrape-fanart">
+                  <span>Fanart</span>
+                  <img v-if="chooserFanartURL()" :src="chooserFanartURL()" alt="" @error="hideBrokenImage" />
+                </div>
                 <div class="scrape-identity">
                   <div class="poster-frame compact">
-                    <img v-if="chooser.detail.posterPath" :src="imageURL(chooser.detail.posterPath)" alt="" />
+                    <img v-if="chooser.detail.posterPath" :src="imageURL(chooser.detail.posterPath)" alt="" @error="hideBrokenImage" />
                     <span v-else>Poster</span>
                   </div>
                   <div>

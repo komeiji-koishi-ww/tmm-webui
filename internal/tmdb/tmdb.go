@@ -10,7 +10,7 @@ import (
 )
 
 const baseURL = "https://api.themoviedb.org/3"
-const imageBaseURL = "https://image.tmdb.org/t/p/original"
+const imageBaseURL = "https://image.tmdb.org/t/p"
 
 type Client struct {
 	Key    string
@@ -401,10 +401,21 @@ func (c Client) TVSeason(showID int, seasonNumber int, showTitle string) (TVSeas
 }
 
 func (c Client) DownloadImage(path string) ([]byte, error) {
+	return c.DownloadImageSized(path, "original")
+}
+
+func (c Client) DownloadImageSized(path string, size string) ([]byte, error) {
 	if path == "" {
 		return nil, fmt.Errorf("empty image path")
 	}
-	req, err := http.NewRequest("GET", imageBaseURL+path, nil)
+	if !strings.HasPrefix(path, "/") || strings.Contains(path, "..") {
+		return nil, fmt.Errorf("invalid image path")
+	}
+	size = strings.TrimSpace(size)
+	if size == "" {
+		size = "original"
+	}
+	req, err := http.NewRequest("GET", imageBaseURL+"/"+size+path, nil)
 	if err != nil {
 		return nil, err
 	}

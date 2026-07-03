@@ -32,6 +32,40 @@ const TMM_SCRAPER_FIELDS = {
   ],
 };
 
+const GENRE_ZH = {
+  Action: "动作",
+  Adventure: "冒险",
+  Animation: "动画",
+  Anime: "动画",
+  Biography: "传记",
+  Comedy: "喜剧",
+  Crime: "犯罪",
+  Documentary: "纪录片",
+  Drama: "剧情",
+  Family: "家庭",
+  Fantasy: "奇幻",
+  History: "历史",
+  Horror: "恐怖",
+  Music: "音乐",
+  Musical: "音乐剧",
+  Mystery: "悬疑",
+  Romance: "爱情",
+  "Science Fiction": "科幻",
+  "Sci-Fi": "科幻",
+  "TV Movie": "电视电影",
+  Thriller: "惊悚",
+  War: "战争",
+  Western: "西部",
+  "Action & Adventure": "动作冒险",
+  "Kids": "儿童",
+  "News": "新闻",
+  "Reality": "真人秀",
+  "Sci-Fi & Fantasy": "科幻奇幻",
+  "Soap": "肥皂剧",
+  "Talk": "脱口秀",
+  "War & Politics": "战争政治",
+};
+
 const TMM_RENAMER_TOKENS = [
   "${title}", "${originalTitle}", "${edition}", "${year}", "${releaseDate}", "${rating}", "${imdb}", "${tmdb}",
   "${videoFormat}", "${audioCodec}", "${fileSize}",
@@ -298,8 +332,8 @@ const app = createApp({
       layout: {
         browserWidth: 0,
         filterNavWidth: 180,
-        movieColumns: [210, 72, 72, 112, 64, 82],
-        tvColumns: [230, 72, 72, 112, 150],
+        movieColumns: [360, 86, 86, 126, 330],
+        tvColumns: [380, 86, 86, 126, 330],
         resizing: null,
       },
       sortKey: "dateAdded",
@@ -478,7 +512,7 @@ const app = createApp({
     workbenchStyle() {
       if (!this.layout.browserWidth) return {};
       return {
-        gridTemplateColumns: `minmax(420px, ${this.layout.browserWidth}px) 6px minmax(300px, 1fr)`,
+        gridTemplateColumns: `minmax(520px, ${this.layout.browserWidth}px) 6px minmax(320px, 1fr)`,
       };
     },
     filterEditorStyle() {
@@ -639,7 +673,7 @@ const app = createApp({
       const values = new Set();
       for (const item of this.items) {
         for (const genre of item.genres || []) {
-          if (genre) values.add(genre);
+          if (genre) values.add(this.localizeGenre(genre));
         }
       }
       return Array.from(values).sort((a, b) => a.localeCompare(b, "zh-CN"));
@@ -901,7 +935,7 @@ const app = createApp({
       const filterNavWidth = Number(localStorage.getItem("tmmweb.filterNavWidth") || 0);
       const movieColumns = this.loadColumnWidths("tmmweb.movieColumns", this.layout.movieColumns);
       const tvColumns = this.loadColumnWidths("tmmweb.tvColumns", this.layout.tvColumns);
-      if (browserWidth >= 420) this.layout.browserWidth = browserWidth;
+      if (browserWidth >= 520) this.layout.browserWidth = browserWidth;
       if (filterNavWidth >= 140) this.layout.filterNavWidth = filterNavWidth;
       this.layout.movieColumns = movieColumns;
       this.layout.tvColumns = tvColumns;
@@ -918,7 +952,7 @@ const app = createApp({
     startWorkbenchResize(event) {
       const rect = this.$refs.workbench ? this.$refs.workbench.getBoundingClientRect() : null;
       if (!rect) return;
-      const currentWidth = this.layout.browserWidth || Math.round(rect.width - 380);
+      const currentWidth = this.layout.browserWidth || Math.round(rect.width - 450);
       this.layout.resizing = {
         type: "workbench",
         startX: event.clientX,
@@ -926,6 +960,33 @@ const app = createApp({
         containerWidth: rect.width,
       };
       event.preventDefault();
+    },
+    tableColumnIndex(column) {
+      const key = column && (column.columnKey || column.property || column.rawColumnKey || column.label);
+      return {
+        title: 0,
+        titleGuess: 0,
+        "标题": 0,
+        "标题 / 季 / 集": 0,
+        year: 1,
+        yearGuess: 1,
+        "年份": 1,
+        rating: 2,
+        "评分": 2,
+        dateAdded: 3,
+        "添加日期": 3,
+        status: 4,
+        "NFO / 图片 / 媒体信息": 4,
+      }[key];
+    },
+    handleTableHeaderDragend(kind, newWidth, _oldWidth, column) {
+      const index = this.tableColumnIndex(column);
+      if (index === undefined) return;
+      const key = kind === "movie" ? "movieColumns" : "tvColumns";
+      const widths = this.layout[key].slice();
+      widths[index] = Math.max(this.minColumnWidth(index), Number(newWidth) || widths[index]);
+      this.layout[key] = widths;
+      localStorage.setItem(`tmmweb.${key}`, JSON.stringify(widths.map((value) => Math.round(value))));
     },
     startFilterNavResize(event) {
       this.layout.resizing = {
@@ -951,8 +1012,8 @@ const app = createApp({
       if (!resizing) return;
       const delta = event.clientX - resizing.startX;
       if (resizing.type === "workbench") {
-        const max = Math.max(420, resizing.containerWidth - 300 - 6);
-        this.layout.browserWidth = Math.min(max, Math.max(420, resizing.startWidth + delta));
+        const max = Math.max(520, resizing.containerWidth - 320 - 6);
+        this.layout.browserWidth = Math.min(max, Math.max(520, resizing.startWidth + delta));
         return;
       }
       if (resizing.type === "filterNav") {
@@ -974,7 +1035,9 @@ const app = createApp({
       this.layout.resizing = null;
     },
     minColumnWidth(index) {
-      return index === 0 ? 140 : 56;
+      if (index === 0) return 180;
+      if (index === 4) return 220;
+      return 70;
     },
     filterDefinition(id) {
       return this.filterDefinitions.get(id) || null;
@@ -1105,7 +1168,7 @@ const app = createApp({
     filterFieldValue(id, item, tvStats = null) {
       switch (id) {
         case "allInOne":
-          return [item.titleGuess, item.showGuess, item.originalTitle || item.original, item.yearGuess, item.matchedName, item.fileName, item.path, item.imdbId, item.matchedId, item.videoFormat, item.audioCodec, item.fileSize, ...(item.genres || [])].join(" ");
+          return [item.titleGuess, item.showGuess, item.originalTitle || item.original, item.yearGuess, item.matchedName, item.fileName, item.path, item.imdbId, item.matchedId, item.videoFormat, item.audioCodec, item.fileSize, ...(item.genres || []), ...this.localizedGenres(item.genres || [])].join(" ");
         case "title":
           return item.kind === "tvshow" ? item.showGuess || item.titleGuess : item.titleGuess;
         case "originalTitle":
@@ -1135,7 +1198,7 @@ const app = createApp({
         case "videoFilesize":
           return Number(item.fileSizeBytes || 0) / (1024 * 1024 * 1024);
         case "genre":
-          return item.genres || [];
+          return [...(item.genres || []), ...this.localizedGenres(item.genres || [])];
         case "tmdbId":
           return Number(item.matchedId || 0);
         case "imdbId":
@@ -1326,6 +1389,22 @@ const app = createApp({
       const showRating = Number(item.showRating || 0);
       if (showRating > 0 && Math.abs(rating - showRating) < 0.05) return 0;
       return rating;
+    },
+    localizeGenre(genre) {
+      const text = String(genre || "").trim();
+      if (!text) return "";
+      return GENRE_ZH[text] || text;
+    },
+    localizedGenres(genres) {
+      const seen = new Set();
+      const values = [];
+      for (const genre of genres || []) {
+        const localized = this.localizeGenre(genre);
+        if (!localized || seen.has(localized)) continue;
+        seen.add(localized);
+        values.push(localized);
+      }
+      return values;
     },
     tvShowRating(show) {
       if (!show) return 0;
@@ -2070,6 +2149,7 @@ const app = createApp({
         normalized.imdbId,
         normalized.matchedId,
         ...(normalized.genres || []),
+        ...this.localizedGenres(normalized.genres || []),
       ].filter(Boolean).join(" ").toLowerCase();
       return markRaw(normalized);
     },
@@ -2176,6 +2256,7 @@ const app = createApp({
     },
     handleTVTableRowClick(row, _column, event) {
       if (!row) return;
+      const clickEvent = event || window.event || null;
       if (row.level === "show") {
         this.toggleShow(row.payload.key);
         this.selectTvGroup("show", row.payload);
@@ -2186,7 +2267,10 @@ const app = createApp({
         this.selectTvGroup("season", row.payload.season);
         return;
       }
-      this.selectItem(row.payload, event);
+      this.selectItem(row.payload, clickEvent);
+    },
+    handleTVTitleClick(row, event) {
+      this.handleTVTableRowClick(row, null, event);
     },
     handleTVTableContextMenu(row, _column, event) {
       if (!row || !event) return;
@@ -2220,6 +2304,20 @@ const app = createApp({
       if (!item) return false;
       if (this.activeModule === "tvshow") return this.selectedItemIds.includes(item.id);
       return !!this.selectedItem && this.selectedItem.id === item.id;
+    },
+    tvRowClassName({ row }) {
+      if (!row) return "";
+      const classes = [`tv-row-${row.level}`];
+      if (row.level === "episode" && row.payload && this.selectedItemIds.includes(row.payload.id)) {
+        classes.push("is-tv-selected");
+      }
+      if (row.level === "show" && this.selectedEntity && this.selectedEntity.kind === "show" && this.selectedEntity.payload && this.selectedEntity.payload.key === row.payload.key) {
+        classes.push("is-tv-selected");
+      }
+      if (row.level === "season" && this.selectedEntity && this.selectedEntity.kind === "season" && this.selectedEntity.payload && this.selectedEntity.payload.key === row.payload.season.key) {
+        classes.push("is-tv-selected");
+      }
+      return classes.join(" ");
     },
     selectedTVRenameItems(payload = null) {
       if (payload && payload.kind === "tvshow" && this.selectedItemIds.includes(payload.id)) {
@@ -2526,7 +2624,14 @@ const app = createApp({
     },
     imageURL(path, size = "w342") {
       if (!path) return "";
-      return `https://image.tmdb.org/t/p/${size}${path}`;
+      const params = new URLSearchParams();
+      params.set("path", path);
+      params.set("size", size);
+      return `/api/tmdb-image?${params.toString()}`;
+    },
+    chooserFanartURL() {
+      const path = (this.chooser.detail && this.chooser.detail.backdropPath) || (this.chooser.selected && this.chooser.selected.backdropPath) || "";
+      return this.imageURL(path, "w780");
     },
     candidateDate(candidate) {
       return candidate.releaseDate || candidate.firstAirDate || "";
