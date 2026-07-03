@@ -230,6 +230,11 @@ const app = createApp({
       selectedItem: null,
       selectedItemIds: [],
       lastSelectedTVItemId: "",
+      keyboardModifiers: {
+        shift: false,
+        ctrl: false,
+        meta: false,
+      },
       candidates: [],
       scrapeSearch: {
         query: "",
@@ -331,6 +336,7 @@ const app = createApp({
       },
       layout: {
         browserWidth: 0,
+        inspectorWidth: 440,
         filterNavWidth: 180,
         movieColumns: [360, 86, 86, 126, 330],
         tvColumns: [380, 86, 86, 126, 330],
@@ -510,9 +516,9 @@ const app = createApp({
       return this.selectedTask && this.selectedTask.state === "running";
     },
     workbenchStyle() {
-      if (!this.layout.browserWidth) return {};
+      const width = this.clampedInspectorWidth(this.layout.inspectorWidth);
       return {
-        gridTemplateColumns: `minmax(520px, ${this.layout.browserWidth}px) 6px minmax(320px, 1fr)`,
+        gridTemplateColumns: `minmax(0, 1fr) 6px ${width}px`,
       };
     },
     filterEditorStyle() {
@@ -918,6 +924,8 @@ const app = createApp({
     this.startPolling();
     window.addEventListener("click", this.closeContextMenu);
     window.addEventListener("keydown", this.handleKeydown);
+    window.addEventListener("keyup", this.handleKeyup);
+    window.addEventListener("blur", this.clearKeyboardModifiers);
     window.addEventListener("pointermove", this.handleResizeMove);
     window.addEventListener("pointerup", this.stopResize);
     this.status = "就绪";
@@ -926,19 +934,31 @@ const app = createApp({
     if (this.poller) clearInterval(this.poller);
     window.removeEventListener("click", this.closeContextMenu);
     window.removeEventListener("keydown", this.handleKeydown);
+    window.removeEventListener("keyup", this.handleKeyup);
+    window.removeEventListener("blur", this.clearKeyboardModifiers);
     window.removeEventListener("pointermove", this.handleResizeMove);
     window.removeEventListener("pointerup", this.stopResize);
   },
   methods: {
     loadLayoutSettings() {
       const browserWidth = Number(localStorage.getItem("tmmweb.browserWidth") || 0);
+      const inspectorWidth = Number(localStorage.getItem("tmmweb.inspectorWidth") || 0);
       const filterNavWidth = Number(localStorage.getItem("tmmweb.filterNavWidth") || 0);
       const movieColumns = this.loadColumnWidths("tmmweb.movieColumns", this.layout.movieColumns);
       const tvColumns = this.loadColumnWidths("tmmweb.tvColumns", this.layout.tvColumns);
-      if (browserWidth >= 520) this.layout.browserWidth = browserWidth;
+      if (inspectorWidth >= 320) this.layout.inspectorWidth = this.clampedInspectorWidth(inspectorWidth);
+      else if (browserWidth >= 520) {
+        const migrated = window.innerWidth ? window.innerWidth - browserWidth - 6 : 440;
+        this.layout.inspectorWidth = this.clampedInspectorWidth(migrated);
+      }
       if (filterNavWidth >= 140) this.layout.filterNavWidth = filterNavWidth;
       this.layout.movieColumns = movieColumns;
       this.layout.tvColumns = tvColumns;
+    },
+    clampedInspectorWidth(value) {
+      const viewport = window.innerWidth || 1440;
+      const max = Math.max(360, Math.min(680, viewport - 640));
+      return Math.min(max, Math.max(360, Number(value) || 440));
     },
     loadColumnWidths(key, fallback) {
       try {
@@ -952,11 +972,10 @@ const app = createApp({
     startWorkbenchResize(event) {
       const rect = this.$refs.workbench ? this.$refs.workbench.getBoundingClientRect() : null;
       if (!rect) return;
-      const currentWidth = this.layout.browserWidth || Math.round(rect.width - 450);
       this.layout.resizing = {
         type: "workbench",
         startX: event.clientX,
-        startWidth: currentWidth,
+        startWidth: this.clampedInspectorWidth(this.layout.inspectorWidth),
         containerWidth: rect.width,
       };
       event.preventDefault();
@@ -1012,8 +1031,8 @@ const app = createApp({
       if (!resizing) return;
       const delta = event.clientX - resizing.startX;
       if (resizing.type === "workbench") {
-        const max = Math.max(520, resizing.containerWidth - 320 - 6);
-        this.layout.browserWidth = Math.min(max, Math.max(520, resizing.startWidth + delta));
+        const max = Math.max(360, Math.min(680, resizing.containerWidth - 640));
+        this.layout.inspectorWidth = Math.min(max, Math.max(360, resizing.startWidth - delta));
         return;
       }
       if (resizing.type === "filterNav") {
@@ -1028,7 +1047,8 @@ const app = createApp({
     },
     stopResize() {
       if (!this.layout.resizing) return;
-      if (this.layout.browserWidth) localStorage.setItem("tmmweb.browserWidth", String(Math.round(this.layout.browserWidth)));
+      localStorage.setItem("tmmweb.inspectorWidth", String(Math.round(this.clampedInspectorWidth(this.layout.inspectorWidth))));
+      localStorage.removeItem("tmmweb.browserWidth");
       localStorage.setItem("tmmweb.filterNavWidth", String(Math.round(this.layout.filterNavWidth)));
       localStorage.setItem("tmmweb.movieColumns", JSON.stringify(this.layout.movieColumns.map((value) => Math.round(value))));
       localStorage.setItem("tmmweb.tvColumns", JSON.stringify(this.layout.tvColumns.map((value) => Math.round(value))));
@@ -2225,8 +2245,8 @@ const app = createApp({
     },
     selectItem(item, event = null) {
       const isTV = item.kind === "tvshow";
-      const rangeSelect = isTV && event && event.shiftKey;
-      const multiToggle = isTV && event && (event.metaKey || event.ctrlKey);
+      const rangeSelect = isTV && this.isShiftSelection(event);
+      const multiToggle = isTV && this.isToggleSelection(event);
       if (rangeSelect) {
         const range = this.tvSelectionRange(item.id);
         this.selectedItemIds = range.length ? range : [item.id];
@@ -2254,9 +2274,27 @@ const app = createApp({
       this.scrapeSearch.year = item.yearGuess || "";
       this.renamePreview = null;
     },
+    isShiftSelection(event = null) {
+      return !!((event && event.shiftKey) || this.keyboardModifiers.shift);
+    },
+    isToggleSelection(event = null) {
+      return !!((event && (event.metaKey || event.ctrlKey)) || this.keyboardModifiers.meta || this.keyboardModifiers.ctrl);
+    },
+    updateKeyboardModifiers(event = null) {
+      if (!event) return;
+      this.keyboardModifiers.shift = !!event.shiftKey;
+      this.keyboardModifiers.ctrl = !!event.ctrlKey;
+      this.keyboardModifiers.meta = !!event.metaKey;
+    },
+    clearKeyboardModifiers() {
+      this.keyboardModifiers.shift = false;
+      this.keyboardModifiers.ctrl = false;
+      this.keyboardModifiers.meta = false;
+    },
     handleTVTableRowClick(row, _column, event) {
       if (!row) return;
       const clickEvent = event || window.event || null;
+      this.updateKeyboardModifiers(clickEvent);
       if (row.level === "show") {
         this.toggleShow(row.payload.key);
         this.selectTvGroup("show", row.payload);
@@ -2274,6 +2312,7 @@ const app = createApp({
     },
     handleTVTableContextMenu(row, _column, event) {
       if (!row || !event) return;
+      this.updateKeyboardModifiers(event);
       event.preventDefault();
       if (row.level === "show") {
         this.openContextMenu(event, "show", row.payload);
@@ -2286,7 +2325,7 @@ const app = createApp({
       this.openContextMenu(event, "episode", row.payload);
     },
     visibleTVEpisodeItems() {
-      return this.tvTree.flatMap((show) => show.seasons.flatMap((season) => season.items));
+      return this.tvTreeRows.filter((row) => row.level === "episode" && row.payload).map((row) => row.payload);
     },
     tvSelectionRange(targetId) {
       const items = this.visibleTVEpisodeItems();
@@ -2328,11 +2367,15 @@ const app = createApp({
       return this.selectedItem && this.selectedItem.kind === "tvshow" ? [this.selectedItem] : [];
     },
     handleKeydown(event) {
+      this.updateKeyboardModifiers(event);
       if (event.key === "Escape") {
         this.closeContextMenu();
         if (this.chooser.open && !this.chooser.loading && !this.chooser.scraping) this.closeChooser();
         if (this.localRename.open && !this.localRename.saving) this.closeLocalRename();
       }
+    },
+    handleKeyup(event) {
+      this.updateKeyboardModifiers(event);
     },
     openContextMenu(event, scope, payload) {
       const keepTVSelection = scope === "episode" && payload && this.selectedItemIds.includes(payload.id) && this.selectedItemIds.length > 1;

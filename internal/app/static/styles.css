@@ -182,7 +182,7 @@ select {
 
 .main-layout {
   display: grid;
-  grid-template-columns: minmax(580px, 1fr) 6px minmax(330px, 450px);
+  grid-template-columns: minmax(0, 1fr) 6px minmax(360px, 440px);
   gap: 0;
   height: calc(100vh - 68px);
   min-height: 0;
@@ -195,10 +195,10 @@ select {
 }
 
 .library-pane {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) 32px;
+  display: flex;
   min-height: 0;
   min-width: 0;
+  flex-direction: column;
   padding: 18px 14px 10px 22px;
 }
 
@@ -230,6 +230,7 @@ select {
 
 .active-filters {
   display: flex;
+  flex: 0 0 auto;
   min-height: 0;
   flex-wrap: wrap;
   gap: 8px;
@@ -239,6 +240,7 @@ select {
 .table-shell {
   display: grid;
   grid-template-rows: minmax(0, 1fr);
+  flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
 }
@@ -335,6 +337,7 @@ select {
 
 .library-footer {
   display: flex;
+  flex: 0 0 32px;
   align-items: center;
   gap: 18px;
   min-width: 0;
