@@ -1,4 +1,18 @@
 const { createApp } = Vue;
+const ElementIcons = window.ElementPlusIconsVue || {};
+const {
+  ArrowUp,
+  EditPen,
+  Filter,
+  Folder,
+  MagicStick,
+  Monitor,
+  Refresh,
+  Search,
+  Setting,
+  SortDown,
+  SortUp,
+} = ElementIcons;
 
 const TMM_SCRAPER_FIELDS = {
   movie: [
@@ -172,7 +186,7 @@ const DEFAULT_TVSHOW_RENAMER_PATH = "${showTitle} (${showYear})";
 const DEFAULT_TVSHOW_RENAMER_SEASON = "Season ${seasonNr2}";
 const DEFAULT_TVSHOW_RENAMER_FILE = "${showTitle}.S${seasonNr2}E${episodeNr2}.${title}";
 
-createApp({
+const app = createApp({
   data() {
     return {
       libraries: [],
@@ -337,6 +351,17 @@ createApp({
       poller: null,
       status: "正在初始化",
       busy: false,
+      ArrowUp,
+      EditPen,
+      Filter,
+      Folder,
+      MagicStick,
+      Monitor,
+      Refresh,
+      Search,
+      Setting,
+      SortDown,
+      SortUp,
       DEFAULT_MOVIE_RENAMER_PATH,
       DEFAULT_MOVIE_RENAMER_FILE,
       DEFAULT_TVSHOW_RENAMER_PATH,
@@ -673,6 +698,49 @@ createApp({
             .sort((a, b) => a.season - b.season),
         }));
     },
+    tvTreeRows() {
+      return this.tvTree.flatMap((show) => {
+        const firstShowItem = this.firstTVItem(show) || {};
+        const rows = [{
+          key: `show:${show.key}`,
+          level: "show",
+          title: `${this.isShowExpanded(show.key) ? "▾" : "▸"} ${show.title}`,
+          year: firstShowItem.yearGuess || "-",
+          rating: this.tvShowRating(show),
+          dateAdded: firstShowItem.dateAdded || "",
+          status: `${show.seasons.length} 季 / ${show.episodes} 集 · ${firstShowItem.hasNfo ? "show.nfo" : "未匹配"}`,
+          payload: show,
+        }];
+        if (!this.isShowExpanded(show.key)) return rows;
+        for (const season of show.seasons) {
+          const firstSeasonItem = season.items[0] || {};
+          rows.push({
+            key: `season:${season.key}`,
+            level: "season",
+            title: `   ${this.isSeasonExpanded(season.key) ? "▾" : "▸"} ${season.title}`,
+            year: firstSeasonItem.yearGuess || "-",
+            rating: 0,
+            dateAdded: firstSeasonItem.dateAdded || "",
+            status: `${season.items.length} 集 · ${firstSeasonItem.hasNfo ? "season.nfo" : "待写入"}`,
+            payload: { show, season },
+          });
+          if (!this.isSeasonExpanded(season.key)) continue;
+          for (const item of season.items) {
+            rows.push({
+              key: `episode:${item.id}`,
+              level: "episode",
+              title: `      ${this.itemSeasonText(item)}`,
+              year: item.yearGuess || "-",
+              rating: this.tvEpisodeRating(item),
+              dateAdded: item.dateAdded || "",
+              status: this.itemStatusText(item),
+              payload: item,
+            });
+          }
+        }
+        return rows;
+      });
+    },
     allTasks() {
       return Object.values(this.tasks)
         .filter(Boolean)
@@ -717,6 +785,9 @@ createApp({
     },
     activeSettingsPage() {
       return this.settingsActiveSection;
+    },
+    activeFilterGroupFilters() {
+      return (this.filterGroups.find((group) => group.id === this.filterEditor.tab) || this.filterGroups[0] || { filters: [] }).filters;
     },
     detailTitle() {
       if (!this.selectedSummary) return "";
@@ -1992,6 +2063,33 @@ createApp({
       this.scrapeSearch.year = item.yearGuess || "";
       this.renamePreview = null;
     },
+    handleTVTableRowClick(row, _column, event) {
+      if (!row) return;
+      if (row.level === "show") {
+        this.toggleShow(row.payload.key);
+        this.selectTvGroup("show", row.payload);
+        return;
+      }
+      if (row.level === "season") {
+        this.toggleSeason(row.payload.season.key);
+        this.selectTvGroup("season", row.payload.season);
+        return;
+      }
+      this.selectItem(row.payload, event);
+    },
+    handleTVTableContextMenu(row, _column, event) {
+      if (!row || !event) return;
+      event.preventDefault();
+      if (row.level === "show") {
+        this.openContextMenu(event, "show", row.payload);
+        return;
+      }
+      if (row.level === "season") {
+        this.openContextMenu(event, "season", row.payload);
+        return;
+      }
+      this.openContextMenu(event, "episode", row.payload);
+    },
     visibleTVEpisodeItems() {
       return this.tvTree.flatMap((show) => show.seasons.flatMap((season) => season.items));
     },
@@ -2045,6 +2143,10 @@ createApp({
       }
       if (scope === "show") this.selectTvGroup("show", payload);
       if (scope === "season") this.selectTvGroup("season", payload.season || payload);
+    },
+    handleContextCommand(command) {
+      if (command === "scrape") this.openChooserFromContext();
+      if (command === "rename") this.openLocalRenameFromContext();
     },
     closeContextMenu() {
       this.contextMenu.open = false;
@@ -2615,4 +2717,12 @@ createApp({
       }
     },
   },
-}).mount("#app");
+});
+
+if (window.ElementPlus) {
+  app.use(window.ElementPlus);
+}
+for (const [name, component] of Object.entries(ElementIcons)) {
+  app.component(name, component);
+}
+app.mount("#app");

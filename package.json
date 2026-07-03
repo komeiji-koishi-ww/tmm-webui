@@ -1,0 +1,25 @@
+{
+  "name": "tmm-webui",
+  "version": "1.0.0",
+  "description": "一个以 tinyMediaManager 功能面为参考、用 Go 后端和 Vue WebUI 重写的轻量媒体管理服务。目标是替代“桌面版 TMM + VNC”的使用方式，让 NAS 上可以直接运行 Web 服务。",
+  "scripts": {
+    "vendor": "mkdir -p internal/app/static/vendor/element-plus internal/app/static/vendor/element-plus-icons && cp node_modules/element-plus/dist/index.full.min.js internal/app/static/vendor/element-plus/index.full.min.js && cp node_modules/element-plus/dist/index.css internal/app/static/vendor/element-plus/index.css && cp node_modules/@element-plus/icons-vue/dist/index.iife.min.js internal/app/static/vendor/element-plus-icons/index.iife.min.js",
+    "check:js": "node --check internal/app/static/app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/komeiji-koishi-ww/tmm-webui.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/komeiji-koishi-ww/tmm-webui/issues"
+  },
+  "homepage": "https://github.com/komeiji-koishi-ww/tmm-webui#readme",
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "element-plus": "^2.14.2"
+  }
+}

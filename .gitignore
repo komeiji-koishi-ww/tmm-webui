@@ -1,5 +1,8 @@
 .DS_Store
 .serena/
+.cache/
+.ardot-screenshots/
+node_modules/
 .env
 .env.*
 !.env.example
