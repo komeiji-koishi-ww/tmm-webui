@@ -336,6 +336,8 @@ func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleItems(w http.ResponseWriter, r *http.Request) {
 	libraryID := r.URL.Query().Get("libraryId")
+	full := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("full")), "1") ||
+		strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("full")), "true")
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = io.WriteString(w, `{"items":[`)
 	s.mu.Lock()
@@ -345,7 +347,11 @@ func (s *Server) handleItems(w http.ResponseWriter, r *http.Request) {
 			if count > 0 {
 				_, _ = io.WriteString(w, ",")
 			}
-			data, err := json.Marshal(item)
+			var value interface{} = item
+			if !full {
+				value = itemListEntryFromMedia(item)
+			}
+			data, err := json.Marshal(value)
 			if err == nil {
 				_, _ = w.Write(data)
 				count++
@@ -354,6 +360,98 @@ func (s *Server) handleItems(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.Unlock()
 	_, _ = fmt.Fprintf(w, `],"count":%d}`+"\n", count)
+}
+
+type itemListEntry struct {
+	ID            string   `json:"id"`
+	LibraryID     string   `json:"libraryId"`
+	SourcePath    string   `json:"sourcePath"`
+	Kind          string   `json:"kind"`
+	Path          string   `json:"path"`
+	Dir           string   `json:"dir"`
+	FileName      string   `json:"fileName"`
+	TitleGuess    string   `json:"titleGuess"`
+	YearGuess     string   `json:"yearGuess,omitempty"`
+	Original      string   `json:"originalTitle,omitempty"`
+	Overview      string   `json:"overview,omitempty"`
+	Runtime       int      `json:"runtime,omitempty"`
+	Rating        float64  `json:"rating,omitempty"`
+	ShowRating    float64  `json:"showRating,omitempty"`
+	Genres        []string `json:"genres,omitempty"`
+	Actors        []string `json:"actors,omitempty"`
+	Premiered     string   `json:"premiered,omitempty"`
+	DateAdded     string   `json:"dateAdded,omitempty"`
+	FileSize      string   `json:"fileSize,omitempty"`
+	FileSizeBytes int64    `json:"fileSizeBytes,omitempty"`
+	VideoFormat   string   `json:"videoFormat,omitempty"`
+	AudioCodec    string   `json:"audioCodec,omitempty"`
+	IMDBID        string   `json:"imdbId,omitempty"`
+	ShowGuess     string   `json:"showGuess,omitempty"`
+	Season        int      `json:"season,omitempty"`
+	Episode       int      `json:"episode,omitempty"`
+	Episodes      []int    `json:"episodes,omitempty"`
+	AirDate       string   `json:"airDate,omitempty"`
+	MediaType     string   `json:"mediaType"`
+	HasNFO        bool     `json:"hasNfo"`
+	HasPoster     bool     `json:"hasPoster"`
+	HasFanart     bool     `json:"hasFanart"`
+	HasSubtitle   bool     `json:"hasSubtitle"`
+	MatchedID     int      `json:"matchedId,omitempty"`
+	MatchedName   string   `json:"matchedName,omitempty"`
+}
+
+func itemListEntryFromMedia(item media.Item) itemListEntry {
+	return itemListEntry{
+		ID:            item.ID,
+		LibraryID:     item.LibraryID,
+		SourcePath:    item.SourcePath,
+		Kind:          item.Kind,
+		Path:          item.Path,
+		Dir:           item.Dir,
+		FileName:      item.FileName,
+		TitleGuess:    item.TitleGuess,
+		YearGuess:     item.YearGuess,
+		Original:      item.Original,
+		Overview:      item.Overview,
+		Runtime:       item.Runtime,
+		Rating:        item.Rating,
+		ShowRating:    item.ShowRating,
+		Genres:        limitStrings(item.Genres, 24),
+		Actors:        limitStrings(item.Actors, 40),
+		Premiered:     item.Premiered,
+		DateAdded:     item.DateAdded,
+		FileSize:      item.FileSize,
+		FileSizeBytes: item.FileSizeBytes,
+		VideoFormat:   item.VideoFormat,
+		AudioCodec:    item.AudioCodec,
+		IMDBID:        item.IMDBID,
+		ShowGuess:     item.ShowGuess,
+		Season:        item.Season,
+		Episode:       item.Episode,
+		Episodes:      limitInts(item.Episodes, 12),
+		AirDate:       item.AirDate,
+		MediaType:     item.MediaType,
+		HasNFO:        item.HasNFO,
+		HasPoster:     item.HasPoster,
+		HasFanart:     item.HasFanart,
+		HasSubtitle:   item.HasSubtitle,
+		MatchedID:     item.MatchedID,
+		MatchedName:   item.MatchedName,
+	}
+}
+
+func limitStrings(values []string, limit int) []string {
+	if len(values) <= limit {
+		return values
+	}
+	return values[:limit]
+}
+
+func limitInts(values []int, limit int) []int {
+	if len(values) <= limit {
+		return values
+	}
+	return values[:limit]
 }
 
 func (s *Server) handleArtwork(w http.ResponseWriter, r *http.Request) {
