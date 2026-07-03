@@ -23,7 +23,7 @@ func staticHandler() http.Handler {
 	if err != nil {
 		panic(err)
 	}
-	return staticFileHandler(sub, false)
+	return staticFileHandler(sub, true)
 }
 
 func staticFileHandler(fileSystem fs.FS, noStore bool) http.Handler {

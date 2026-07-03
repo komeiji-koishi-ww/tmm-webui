@@ -521,7 +521,7 @@ const app = createApp({
     workbenchStyle() {
       const width = this.clampedInspectorWidth(this.layout.inspectorWidth);
       return {
-        gridTemplateColumns: `minmax(0, 1fr) 6px ${width}px`,
+        "--inspector-width": `${width}px`,
       };
     },
     filterEditorStyle() {
