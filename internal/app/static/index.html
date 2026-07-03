@@ -148,13 +148,16 @@
                   :current-row-key="selectedItem ? 'episode:' + selectedItem.id : ''"
                   :row-class-name="tvRowClassName"
                   empty-text="没有匹配条目"
+                  @mousedown.capture="rememberTVPointerEvent"
+                  @click.capture="handleTVTableNativeClick"
                   @header-dragend="(newWidth, oldWidth, column) => handleTableHeaderDragend('tvshow', newWidth, oldWidth, column)"
                   @row-click="handleTVTableRowClick"
+                  @cell-click="handleTVTableCellClick"
                   @row-contextmenu="handleTVTableContextMenu"
                 >
                   <el-table-column prop="title" column-key="title" label="标题 / 季 / 集" :width="layout.tvColumns[0]" min-width="200" show-overflow-tooltip resizable>
                     <template #default="{ row }">
-                      <span :class="['tree-title', row.level]" @click.stop="handleTVTitleClick(row, $event)">{{ row.title }}</span>
+                      <span :class="['tree-title', row.level]" @click="handleTVTitleClick(row, $event)">{{ row.title }}</span>
                     </template>
                   </el-table-column>
                   <el-table-column prop="year" column-key="year" label="年份" :width="layout.tvColumns[1]" min-width="70" resizable></el-table-column>

@@ -235,6 +235,9 @@ const app = createApp({
         ctrl: false,
         meta: false,
       },
+      lastTVPointerEvent: null,
+      lastTVClickKey: "",
+      lastTVClickAt: 0,
       candidates: [],
       scrapeSearch: {
         query: "",
@@ -2291,9 +2294,52 @@ const app = createApp({
       this.keyboardModifiers.ctrl = false;
       this.keyboardModifiers.meta = false;
     },
-    handleTVTableRowClick(row, _column, event) {
+    rememberTVPointerEvent(event) {
+      this.lastTVPointerEvent = event || null;
+      this.updateKeyboardModifiers(event);
+    },
+    tvClickEvent(event = null) {
+      return event || this.lastTVPointerEvent || window.event || null;
+    },
+    shouldSkipTVClick(row) {
+      if (!row) return true;
+      const now = Date.now();
+      if (this.lastTVClickKey === row.key && now - this.lastTVClickAt < 40) return true;
+      this.lastTVClickKey = row.key;
+      this.lastTVClickAt = now;
+      return false;
+    },
+    tvRowFromEvent(event) {
+      const target = event && event.target;
+      const tableRow = target && target.closest ? target.closest("tr") : null;
+      if (!tableRow) return null;
+      const key = tableRow.dataset ? tableRow.dataset.rowKey : "";
+      if (key) {
+        const match = this.tvTreeRows.find((row) => row.key === key);
+        if (match) return match;
+      }
+      const rows = Array.from(tableRow.parentElement ? tableRow.parentElement.querySelectorAll("tr") : []);
+      const index = rows.indexOf(tableRow);
+      return index >= 0 ? this.tvTreeRows[index] || null : null;
+    },
+    handleTVTableNativeClick(event) {
+      const row = this.tvRowFromEvent(event);
       if (!row) return;
-      const clickEvent = event || window.event || null;
+      this.activateTVRow(row, event);
+    },
+    handleTVTableRowClick(row, _column, event) {
+      this.activateTVRow(row, event);
+    },
+    handleTVTableCellClick(row, _column, _cell, event) {
+      this.activateTVRow(row, event);
+    },
+    handleTVTitleClick(row, event) {
+      this.activateTVRow(row, event);
+    },
+    activateTVRow(row, event = null) {
+      if (!row) return;
+      if (this.shouldSkipTVClick(row)) return;
+      const clickEvent = this.tvClickEvent(event);
       this.updateKeyboardModifiers(clickEvent);
       if (row.level === "show") {
         this.toggleShow(row.payload.key);
@@ -2306,9 +2352,6 @@ const app = createApp({
         return;
       }
       this.selectItem(row.payload, clickEvent);
-    },
-    handleTVTitleClick(row, event) {
-      this.handleTVTableRowClick(row, null, event);
     },
     handleTVTableContextMenu(row, _column, event) {
       if (!row || !event) return;

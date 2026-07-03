@@ -389,10 +389,12 @@ select {
 }
 
 .inspector-pane > * {
+  width: 100%;
   flex: 0 0 auto;
 }
 
 .identity-block {
+  width: 100%;
   align-items: flex-start;
   gap: 16px;
 }
@@ -438,10 +440,17 @@ select {
 }
 
 .metadata-grid {
+  width: 100%;
   --el-descriptions-table-border: 1px solid var(--app-line);
 }
 
+.metadata-grid .el-descriptions__body,
+.metadata-grid .el-descriptions__table {
+  width: 100%;
+}
+
 .overview-block {
+  width: 100%;
   border-radius: var(--app-radius);
 }
 
@@ -488,6 +497,7 @@ select {
 
 .folder-path {
   display: grid;
+  width: 100%;
   gap: 6px;
   color: var(--app-muted);
   font-size: 12px;
