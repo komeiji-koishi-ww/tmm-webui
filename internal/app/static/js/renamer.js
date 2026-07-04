@@ -308,17 +308,19 @@ export const renamerMixin = {
         filename: `${this.previewPattern(this.scraperSettings.tvShowRenamerFilename, "tvshow", "file")}.mkv`,
       };
     },
-    openLocalRename(items, mode) {
+    openLocalRename(items, mode, options = {}) {
       const rows = items.filter(Boolean).map((item) => ({
         itemId: item.id,
         fileName: item.fileName || this.basename(item.path),
         newFileName: item.fileName || this.basename(item.path),
       }));
       if (!rows.length) return;
+      const singleManual =
+        options.singleManual || mode === "movie" || rows.length === 1;
       this.localRename = {
         open: true,
         mode,
-        tab: mode === "movie" ? "manual" : "replace",
+        tab: singleManual ? "manual" : "replace",
         saving: false,
         error: "",
         replaceText: "",

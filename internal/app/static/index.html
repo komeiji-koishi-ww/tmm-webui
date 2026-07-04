@@ -91,9 +91,6 @@
                   @click="openRenameFromToolbar"
                   >重命名</el-button
                 >
-                <el-button :disabled="!selectedLibrary || busy" @click="scan"
-                  >{{ selectedScanning ? '停止扫描' : '刷新' }}</el-button
-                >
               </section>
               <section class="mobile-info-card">
                 <h3>基本信息</h3>
@@ -147,12 +144,19 @@
                   · {{ visibleItems.length }} / {{ items.length }}
                 </p>
               </div>
-              <el-button
-                :icon="Refresh"
-                circle
-                :disabled="!selectedLibrary || busy || (selectedTask && selectedTask.state === 'canceling')"
-                @click="scan"
-              ></el-button>
+              <div class="mobile-header-actions">
+                <el-button
+                  :icon="Setting"
+                  circle
+                  @click="openSettings"
+                ></el-button>
+                <el-button
+                  :icon="Refresh"
+                  circle
+                  :disabled="!selectedLibrary || busy || (selectedTask && selectedTask.state === 'canceling')"
+                  @click="scan"
+                ></el-button>
+              </div>
             </header>
 
             <div
@@ -191,7 +195,7 @@
               ></el-option>
             </el-select>
 
-            <section class="mobile-scan-card" v-if="selectedTask">
+            <section class="mobile-scan-card" v-if="selectedTaskActive">
               <div>
                 <strong
                   >{{ selectedTask.libraryName || selectedLibrary.name
@@ -199,10 +203,7 @@
                 >
                 <p>{{ taskDescription(selectedTask) }}</p>
               </div>
-              <el-progress
-                :percentage="selectedTask.visitedFiles ? Math.min(100, Math.round((selectedTask.foundItems || 0) / Math.max(selectedTask.visitedFiles, 1) * 100)) : 0"
-                :show-text="false"
-              ></el-progress>
+              <div class="scan-flow" aria-hidden="true"></div>
             </section>
 
             <section class="mobile-toolbar">
@@ -264,23 +265,69 @@
             </section>
 
             <section v-else class="mobile-card-list">
-              <button
+              <article
                 v-for="row in tvTreeRows"
                 :key="row.key"
-                :class="['mobile-media-card', 'tv-' + row.level, selectedItem && row.payload && row.payload.id === selectedItem.id ? 'selected' : '']"
-                type="button"
+                :class="['mobile-media-card', 'tv-' + row.level, selectedItem && row.payload && row.payload.id === selectedItem.id ? 'selected' : '', row.level === 'episode' && mobileEpisodeRenameSelected(row.payload) ? 'rename-selected' : '', isMobileSeasonRenameActive(row) ? 'rename-mode' : '', row.level === 'show' || row.level === 'season' ? 'has-actions' : '']"
                 @click="handleMobileTVRow(row, $event)"
               >
-                <strong>{{ mobileTVRowTitle(row) }}</strong>
-                <span
-                  >{{ row.year || '-' }}
-                  <template v-if="row.rating"
-                    >· {{ formatRating(row.rating) }}</template
+                <div class="mobile-tv-row-main">
+                  <strong>{{ mobileTVRowTitle(row) }}</strong>
+                  <span
+                    >{{ row.year || '-' }}
+                    <template v-if="row.rating"
+                      >· {{ formatRating(row.rating) }}</template
+                    >
+                    · {{ formatDate(row.dateAdded) }}</span
                   >
-                  · {{ formatDate(row.dateAdded) }}</span
+                  <small>{{ row.status }}</small>
+                </div>
+                <div
+                  v-if="row.level === 'show' || row.level === 'season'"
+                  class="mobile-row-actions"
                 >
-                <small>{{ row.status }}</small>
-              </button>
+                  <el-button
+                    v-if="row.level === 'show'"
+                    size="small"
+                    type="primary"
+                    plain
+                    :disabled="busy"
+                    @click.stop="openMobileTVChooser(row, $event)"
+                    >搜刮</el-button
+                  >
+                  <template v-else>
+                    <el-button
+                      size="small"
+                      type="primary"
+                      plain
+                      :disabled="busy"
+                      @click.stop="openMobileTVChooser(row, $event)"
+                      >搜刮本季</el-button
+                    >
+                    <el-button
+                      v-if="isSeasonExpanded(row.payload.season.key) && !isMobileSeasonRenameActive(row)"
+                      size="small"
+                      plain
+                      @click.stop="startMobileSeasonRename(row, $event)"
+                      >重命名</el-button
+                    >
+                    <el-button
+                      v-else-if="isMobileSeasonRenameActive(row)"
+                      size="small"
+                      type="success"
+                      @click.stop="confirmMobileSeasonRename(row, $event)"
+                      >确认</el-button
+                    >
+                    <el-button
+                      v-if="isMobileSeasonRenameActive(row)"
+                      size="small"
+                      text
+                      @click.stop="cancelMobileSeasonRename($event)"
+                      >取消</el-button
+                    >
+                  </template>
+                </div>
+              </article>
               <el-empty
                 v-if="!tvTreeRows.length"
                 description="没有匹配条目"
@@ -334,15 +381,12 @@
               <h1>扫描任务</h1>
               <p>数据源更新、NFO 与媒体信息扫描</p>
             </header>
-            <section v-if="selectedTask" class="mobile-task-card active">
+            <section v-if="selectedTaskActive" class="mobile-task-card active">
               <strong
                 >{{ selectedTask.libraryName || selectedLibrary.name }}</strong
               >
               <p>{{ taskDescription(selectedTask) }}</p>
-              <el-progress
-                :percentage="selectedTask.visitedFiles ? Math.min(100, Math.round((selectedTask.foundItems || 0) / Math.max(selectedTask.visitedFiles, 1) * 100)) : 0"
-                :show-text="false"
-              ></el-progress>
+              <div class="scan-flow" aria-hidden="true"></div>
               <el-button v-if="selectedScanning" @click="scan"
                 >停止扫描</el-button
               >
@@ -415,36 +459,6 @@
             </section>
           </main>
 
-          <nav class="mobile-bottom-nav" v-if="!mobileDetailOpen">
-            <button
-              type="button"
-              :class="{ active: mobileTab === 'library' }"
-              @click="mobileTab = 'library'"
-            >
-              <span>▦</span>媒体库
-            </button>
-            <button
-              type="button"
-              :class="{ active: mobileTab === 'scrape' }"
-              @click="mobileTab = 'scrape'"
-            >
-              <span>⌕</span>搜刮
-            </button>
-            <button
-              type="button"
-              :class="{ active: mobileTab === 'tasks' }"
-              @click="mobileTab = 'tasks'"
-            >
-              <span>▤</span>任务
-            </button>
-            <button
-              type="button"
-              :class="{ active: mobileTab === 'settings' }"
-              @click="mobileTab = 'settings'"
-            >
-              <span>◎</span>设置
-            </button>
-          </nav>
         </section>
 
         <el-container v-else class="app-shell">
@@ -498,7 +512,7 @@
             </section>
           </el-header>
 
-          <section class="scan-strip" v-if="selectedTask">
+          <section class="scan-strip" v-if="selectedTaskActive">
             <div class="scan-state">
               <el-icon><monitor></monitor></el-icon>
               <div>
@@ -515,11 +529,7 @@
                 >
               </div>
             </div>
-            <el-progress
-              class="scan-progress"
-              :percentage="selectedTask.visitedFiles ? Math.min(100, Math.round((selectedTask.foundItems || 0) / Math.max(selectedTask.visitedFiles, 1) * 100)) : 0"
-              :show-text="false"
-            ></el-progress>
+            <div class="scan-flow scan-progress" aria-hidden="true"></div>
             <el-button v-if="selectedScanning" @click="scan"
               >停止扫描</el-button
             >
@@ -1293,7 +1303,7 @@
                 >
               </el-form>
 
-              <el-scrollbar height="430px">
+              <div class="candidate-list">
                 <button
                   v-for="candidate in chooser.candidates"
                   :key="candidate.id"
@@ -1317,7 +1327,7 @@
                   description="没有候选"
                   :image-size="72"
                 ></el-empty>
-              </el-scrollbar>
+              </div>
             </aside>
 
             <main class="candidate-detail">

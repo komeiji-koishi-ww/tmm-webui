@@ -21,6 +21,9 @@ export const libraryMixin = {
     selectedScanning() {
       return this.selectedTask && this.selectedTask.state === "running";
     },
+    selectedTaskActive() {
+      return this.scanFlowVisible(this.selectedTask);
+    },
     allTasks() {
       return Object.values(this.tasks)
         .filter(Boolean)
@@ -39,6 +42,12 @@ export const libraryMixin = {
     },
   },
   methods: {
+    scanFlowVisible(task) {
+      return !!(
+        task &&
+        (task.state === "running" || task.state === "canceling")
+      );
+    },
     async loadLibraries() {
       const libraries = await this.api("/api/libraries");
       this.libraries = Array.isArray(libraries) ? libraries : [];

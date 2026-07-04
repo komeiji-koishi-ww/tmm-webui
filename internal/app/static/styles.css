@@ -187,6 +187,38 @@ select {
   min-width: 180px;
 }
 
+.scan-flow {
+  position: relative;
+  height: 8px;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #cdebe6;
+}
+
+.scan-flow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    110deg,
+    rgba(64, 166, 153, 0.24) 0 12px,
+    rgba(64, 166, 153, 0.78) 12px 24px
+  );
+  background-size: 48px 100%;
+  animation: scan-flow 0.9s linear infinite;
+}
+
+@keyframes scan-flow {
+  from {
+    transform: translateX(-48px);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
 .main-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 14px minmax(
@@ -846,6 +878,12 @@ select {
 .candidate-detail,
 .scrape-options {
   padding: 18px;
+}
+
+.candidate-list {
+  max-height: min(430px, calc(100vh - 360px));
+  margin-top: 12px;
+  overflow: auto;
 }
 
 .candidate-card {
