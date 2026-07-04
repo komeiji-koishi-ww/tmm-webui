@@ -285,15 +285,20 @@ select {
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
 }
 
 .media-table {
   min-height: 0;
   height: 100%;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: hidden;
   border-radius: 10px;
   background: var(--app-surface);
   box-shadow: var(--app-shadow);
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
   -webkit-user-select: none;
   user-select: none;
 }
@@ -306,13 +311,23 @@ select {
 }
 
 .media-table .el-scrollbar__wrap {
+  overflow-x: hidden !important;
   overflow-y: auto !important;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+}
+
+.media-table .el-scrollbar__bar.is-horizontal {
+  display: none;
 }
 
 .virtual-media-table {
   position: relative;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   contain: strict;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
   -webkit-user-select: none;
   user-select: none;
 }
