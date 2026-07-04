@@ -120,7 +120,7 @@ const app = createApp({
     window.addEventListener("pointerup", this.stopResize);
     window.addEventListener("mousemove", this.handleResizeMove);
     window.addEventListener("mouseup", this.stopResize);
-    window.addEventListener("resize", this.updateViewportMode);
+    window.addEventListener("resize", this.handleViewportResize);
     window.addEventListener("popstate", this.handleMobilePopState);
     this.updateViewportMode();
     this.initMobileHistory();
@@ -136,7 +136,7 @@ const app = createApp({
     window.removeEventListener("pointerup", this.stopResize);
     window.removeEventListener("mousemove", this.handleResizeMove);
     window.removeEventListener("mouseup", this.stopResize);
-    window.removeEventListener("resize", this.updateViewportMode);
+    window.removeEventListener("resize", this.handleViewportResize);
     window.removeEventListener("popstate", this.handleMobilePopState);
   },
   methods: {

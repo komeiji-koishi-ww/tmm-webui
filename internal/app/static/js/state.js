@@ -81,6 +81,8 @@ export function createInitialState(icons = {}) {
       tab: "details",
     },
     layout: {
+      viewportWidth:
+        typeof window !== "undefined" ? window.innerWidth || 1440 : 1440,
       browserWidth: 0,
       inspectorWidth: 440,
       filterNavWidth: 180,

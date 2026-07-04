@@ -17,12 +17,12 @@ export const layoutMixin = {
       };
     },
     movieGridTemplate() {
-      const columns = this.layout.movieColumns;
+      const columns = this.fittedColumnWidths("movie");
       return `${columns[0]}px ${columns[1]}px ${columns[2]}px ${columns[3]}px minmax(${columns[4]}px, 1fr)`;
     },
     tvGridStyle() {
       return {
-        gridTemplateColumns: this.layout.tvColumns
+        gridTemplateColumns: this.fittedColumnWidths("tvshow")
           .map((width) => `${width}px`)
           .join(" "),
       };
@@ -56,8 +56,8 @@ export const layoutMixin = {
         this.layout.inspectorWidth = this.clampedInspectorWidth(migrated);
       }
       if (filterNavWidth >= 140) this.layout.filterNavWidth = filterNavWidth;
-      this.layout.movieColumns = movieColumns;
-      this.layout.tvColumns = tvColumns;
+      this.layout.movieColumns = this.fittedColumnWidths("movie", movieColumns);
+      this.layout.tvColumns = this.fittedColumnWidths("tvshow", tvColumns);
     },
     clampedInspectorWidth(value) {
       const viewport = window.innerWidth || 1440;
@@ -69,12 +69,13 @@ export const layoutMixin = {
         const values = JSON.parse(localStorage.getItem(key) || "[]");
         if (!Array.isArray(values) || values.length !== fallback.length)
           return fallback.slice();
-        return values.map((value, index) =>
-          Math.max(
-            this.minColumnWidth(index),
-            Number(value) || fallback[index],
-          ),
-        );
+        return values.map((value, index) => {
+          const width = Number(value) || fallback[index];
+          return Math.min(
+            this.maxColumnWidth(index),
+            Math.max(this.minColumnWidth(index), width),
+          );
+        });
       } catch (_) {
         return fallback.slice();
       }
@@ -124,14 +125,14 @@ export const layoutMixin = {
       if (index === undefined) return;
       const key = kind === "movie" ? "movieColumns" : "tvColumns";
       const widths = this.layout[key].slice();
-      widths[index] = Math.max(
-        this.minColumnWidth(index),
+      widths[index] = this.clampColumnWidth(
+        index,
         Number(newWidth) || widths[index],
       );
-      this.layout[key] = widths;
+      this.layout[key] = this.fittedColumnWidths(kind, widths);
       localStorage.setItem(
         `tmmweb.${key}`,
-        JSON.stringify(widths.map((value) => Math.round(value))),
+        JSON.stringify(this.layout[key].map((value) => Math.round(value))),
       );
     },
     saveColumnWidths(kind) {
@@ -150,6 +151,7 @@ export const layoutMixin = {
       event.preventDefault();
     },
     startColumnResize(kind, index, event) {
+      if (this.layout.resizing || !this.canStartColumnResize(event)) return;
       const columns =
         kind === "movie" ? this.layout.movieColumns : this.layout.tvColumns;
       this.layout.resizing = {
@@ -180,13 +182,14 @@ export const layoutMixin = {
         );
       }
       if (resizing.type === "column") {
+        if (!this.shouldApplyColumnResize(delta)) return;
         const key = resizing.kind === "movie" ? "movieColumns" : "tvColumns";
         const columns = this.layout[key].slice();
-        columns[resizing.index] = Math.max(
-          this.minColumnWidth(resizing.index),
+        columns[resizing.index] = this.clampColumnWidth(
+          resizing.index,
           resizing.startWidth + delta,
         );
-        this.layout[key] = columns;
+        this.layout[key] = this.fittedColumnWidths(resizing.kind, columns);
       }
     },
     stopResize() {
@@ -217,9 +220,90 @@ export const layoutMixin = {
       if (resizing.type === "column") this.saveColumnWidths(resizing.kind);
     },
     minColumnWidth(index) {
-      if (index === 0) return 180;
-      if (index === 4) return 220;
-      return 70;
+      if (index === 0) return 160;
+      if (index === 3) return 88;
+      if (index === 4) return 140;
+      return 56;
+    },
+    maxColumnWidth(index) {
+      if (index === 0) return 620;
+      if (index === 4) return 460;
+      if (index === 3) return 180;
+      return 120;
+    },
+    clampColumnWidth(index, value) {
+      return Math.min(
+        this.maxColumnWidth(index),
+        Math.max(this.minColumnWidth(index), Number(value) || 0),
+      );
+    },
+    tableAvailableWidth() {
+      const workbench =
+        this.$refs.workbench &&
+        (this.$refs.workbench.$el || this.$refs.workbench);
+      const rect =
+        workbench && workbench.getBoundingClientRect
+          ? workbench.getBoundingClientRect()
+          : null;
+      const viewport =
+        (rect && rect.width) ||
+        this.layout.viewportWidth ||
+        window.innerWidth ||
+        1440;
+      const inspector = this.clampedInspectorWidth(this.layout.inspectorWidth);
+      return Math.max(420, viewport - inspector - 14 - 36);
+    },
+    fittedColumnWidths(kind, source = null) {
+      const fallback =
+        kind === "movie" ? this.layout.movieColumns : this.layout.tvColumns;
+      const columns = (source || fallback).map((value, index) =>
+        this.clampColumnWidth(index, value),
+      );
+      const available = this.tableAvailableWidth();
+      const minTotal = columns.reduce(
+        (total, _value, index) => total + this.minColumnWidth(index),
+        0,
+      );
+      let total = columns.reduce((sum, value) => sum + value, 0);
+      const target = Math.max(minTotal, available);
+      for (const index of [0, 4, 3, 1, 2]) {
+        if (total <= target) break;
+        const min = this.minColumnWidth(index);
+        const reduction = Math.min(columns[index] - min, total - target);
+        if (reduction > 0) {
+          columns[index] -= reduction;
+          total -= reduction;
+        }
+      }
+      return columns.map((value) => Math.round(value));
+    },
+    updateLayoutViewport() {
+      this.layout.viewportWidth = window.innerWidth || this.layout.viewportWidth;
+      this.layout.movieColumns = this.fittedColumnWidths(
+        "movie",
+        this.layout.movieColumns,
+      );
+      this.layout.tvColumns = this.fittedColumnWidths(
+        "tvshow",
+        this.layout.tvColumns,
+      );
+    },
+    handleViewportResize() {
+      this.updateViewportMode();
+      this.updateLayoutViewport();
+    },
+    isTouchPointer(event) {
+      return event && event.pointerType && event.pointerType !== "mouse";
+    },
+    canStartColumnResize(event) {
+      if (!this.isTouchPointer(event)) return true;
+      return event.target && event.target.closest(".column-resize-handle");
+    },
+    minResizeDelta() {
+      return 2;
+    },
+    shouldApplyColumnResize(delta) {
+      return Math.abs(delta) >= this.minResizeDelta();
     },
   },
 };

@@ -453,6 +453,7 @@ select {
   z-index: 5;
   width: 16px;
   cursor: col-resize;
+  touch-action: none;
 }
 
 .column-resize-handle:hover {
