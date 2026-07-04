@@ -4,6 +4,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,6 +41,8 @@ func (s *Server) runningScanTaskLocked(libraryID string) *Task {
 }
 
 func (s *Server) runScanTask(taskID string, library media.Library) {
+	previousGCPercent := debug.SetGCPercent(scanGCPercent())
+	defer debug.SetGCPercent(previousGCPercent)
 	defer releaseScanMemory()
 
 	var pending []media.Item
@@ -52,8 +55,7 @@ func (s *Server) runScanTask(taskID string, library media.Library) {
 		if !force && len(pending) < scanPersistBatchSize && time.Since(lastFlush) < scanPersistFlushInterval {
 			return nil
 		}
-		batch := append([]media.Item(nil), pending...)
-		if err := s.store.SaveItems(batch); err != nil {
+		if err := s.store.SaveItems(pending); err != nil {
 			pending = nil
 			return err
 		}
@@ -69,15 +71,15 @@ func (s *Server) runScanTask(taskID string, library media.Library) {
 		return task != nil && task.State == "canceling"
 	}
 	s.mu.Lock()
-	existing := make(map[string]media.Item)
+	existing := make(map[string]media.ScanExistingItem)
 	for id, item := range s.items {
 		if item.LibraryID == library.ID {
-			existing[id] = item
+			existing[id] = media.NewScanExistingItem(item)
 		}
 	}
 	s.mu.Unlock()
 	currentIDSet, err := media.ScanLibraryIDSetWithOptions(library, media.ScanOptions{
-		Existing:          existing,
+		ExistingIndex:     existing,
 		ProbeMediaInfo:    scanMediaInfoEnabled(),
 		SkipUnchangedDirs: scanSkipUnchangedDirsEnabled(),
 	}, func(progress media.ScanProgress) {
@@ -152,6 +154,19 @@ func (s *Server) runScanTask(taskID string, library media.Library) {
 func releaseScanMemory() {
 	runtime.GC()
 	debug.FreeOSMemory()
+}
+
+func scanGCPercent() int {
+	if configured, err := strconv.Atoi(strings.TrimSpace(os.Getenv("TMMWEB_SCAN_GOGC"))); err == nil && configured > 0 {
+		if configured < 10 {
+			return 10
+		}
+		if configured > 100 {
+			return 100
+		}
+		return configured
+	}
+	return 50
 }
 
 func scanMediaInfoEnabled() bool {

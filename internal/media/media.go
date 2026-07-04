@@ -221,6 +221,7 @@ type ScanProgress struct {
 
 type ScanOptions struct {
 	Existing          map[string]Item
+	ExistingIndex     map[string]ScanExistingItem
 	Workers           int
 	ProbeMediaInfo    bool
 	SkipUnchangedDirs bool
@@ -230,6 +231,119 @@ type scanJob struct {
 	source string
 	path   string
 	info   os.FileInfo
+}
+
+// ScanExistingItem is the compact item shape needed by incremental scans.
+// It deliberately excludes large metadata fields such as plot, actors and
+// stream slices so scans do not duplicate the full in-memory media cache.
+type ScanExistingItem struct {
+	ID               string
+	LibraryID        string
+	SourcePath       string
+	Kind             string
+	Path             string
+	Dir              string
+	FileName         string
+	TitleGuess       string
+	YearGuess        string
+	DateAdded        string
+	ModTimeUnix      int64
+	DirModTimeUnix   int64
+	NFOModTimeUnix   int64
+	FileSize         string
+	FileSizeBytes    int64
+	VideoFormat      string
+	AudioCodec       string
+	MediaInfoScanned bool
+	HasNFO           bool
+	HasPoster        bool
+	HasFanart        bool
+	HasSubtitle      bool
+	HasNFOSummary    bool
+	MediaType        string
+	ShowGuess        string
+	Season           int
+	Episode          int
+	Episodes         []int
+	AirDate          string
+}
+
+func NewScanExistingItem(item Item) ScanExistingItem {
+	return ScanExistingItem{
+		ID:               item.ID,
+		LibraryID:        item.LibraryID,
+		SourcePath:       item.SourcePath,
+		Kind:             item.Kind,
+		Path:             item.Path,
+		Dir:              item.Dir,
+		FileName:         item.FileName,
+		TitleGuess:       item.TitleGuess,
+		YearGuess:        item.YearGuess,
+		DateAdded:        item.DateAdded,
+		ModTimeUnix:      item.ModTimeUnix,
+		DirModTimeUnix:   item.DirModTimeUnix,
+		NFOModTimeUnix:   item.NFOModTimeUnix,
+		FileSize:         item.FileSize,
+		FileSizeBytes:    item.FileSizeBytes,
+		VideoFormat:      item.VideoFormat,
+		AudioCodec:       item.AudioCodec,
+		MediaInfoScanned: item.MediaInfoScanned,
+		HasNFO:           item.HasNFO,
+		HasPoster:        item.HasPoster,
+		HasFanart:        item.HasFanart,
+		HasSubtitle:      item.HasSubtitle,
+		HasNFOSummary:    !nfoSummaryMissing(item),
+		MediaType:        item.MediaType,
+		ShowGuess:        item.ShowGuess,
+		Season:           item.Season,
+		Episode:          item.Episode,
+		Episodes:         item.Episodes,
+		AirDate:          item.AirDate,
+	}
+}
+
+func BuildScanExistingIndex(items map[string]Item) map[string]ScanExistingItem {
+	if len(items) == 0 {
+		return nil
+	}
+	index := make(map[string]ScanExistingItem, len(items))
+	for id, item := range items {
+		index[id] = NewScanExistingItem(item)
+	}
+	return index
+}
+
+func (item ScanExistingItem) ToItem() Item {
+	return Item{
+		ID:               item.ID,
+		LibraryID:        item.LibraryID,
+		SourcePath:       item.SourcePath,
+		Kind:             item.Kind,
+		Path:             item.Path,
+		Dir:              item.Dir,
+		FileName:         item.FileName,
+		TitleGuess:       item.TitleGuess,
+		YearGuess:        item.YearGuess,
+		DateAdded:        item.DateAdded,
+		ModTimeUnix:      item.ModTimeUnix,
+		DirModTimeUnix:   item.DirModTimeUnix,
+		NFOModTimeUnix:   item.NFOModTimeUnix,
+		FileSize:         item.FileSize,
+		FileSizeBytes:    item.FileSizeBytes,
+		VideoFormat:      item.VideoFormat,
+		AudioCodec:       item.AudioCodec,
+		MediaInfoScanned: item.MediaInfoScanned,
+		HasNFO:           item.HasNFO,
+		HasPoster:        item.HasPoster,
+		HasFanart:        item.HasFanart,
+		HasSubtitle:      item.HasSubtitle,
+		MediaType:        item.MediaType,
+		ShowGuess:        item.ShowGuess,
+		Season:           item.Season,
+		Episode:          item.Episode,
+		Episodes:         item.Episodes,
+		AirDate:          item.AirDate,
+	}
 }
 
 func (m EpisodeMatch) PrimaryEpisode() int {
@@ -292,10 +406,14 @@ func scanLibraryWithOptions(library Library, options ScanOptions, progress func(
 	if options.Workers <= 0 {
 		options.Workers = defaultScanWorkers()
 	}
+	existingIndex := options.ExistingIndex
+	if existingIndex == nil {
+		existingIndex = BuildScanExistingIndex(options.Existing)
+	}
 	library.Paths = NormalizePaths(library)
 	for _, source := range library.Paths {
 		root := filepath.Clean(source)
-		dirCache := buildExistingDirCache(options.Existing, root)
+		dirCache := buildExistingDirCache(existingIndex, root)
 		jobs := make(chan scanJob, options.Workers*2)
 		results := make(chan Item, options.Workers*2)
 		var wg sync.WaitGroup
@@ -367,15 +485,16 @@ func scanLibraryWithOptions(library Library, options ScanOptions, progress func(
 			}
 			found++
 			id := stableID(path)
-			if existing, ok := options.Existing[id]; ok && itemUnchanged(existing, path, info, options.ProbeMediaInfo) {
-				updated := addDirectoryModTime(existing, filepath.Dir(path))
+			if existing, ok := existingIndex[id]; ok && scanExistingUnchanged(existing, path, info, options.ProbeMediaInfo) {
+				updated := addScanDirectoryModTime(existing, filepath.Dir(path))
 				itemWasUpdated := updated.DirModTimeUnix != existing.DirModTimeUnix
 				existing = updated
-				collect(existing)
+				item := existing.ToItem()
+				collect(item)
 				collected++
 				if progress != nil && (itemWasUpdated || found%25 == 0) {
 					if itemWasUpdated {
-						progress(ScanProgress{SourcePath: root, CurrentPath: path, VisitedFiles: visited, FoundItems: found, Item: &existing})
+						progress(ScanProgress{SourcePath: root, CurrentPath: path, VisitedFiles: visited, FoundItems: found, Item: &item})
 					} else {
 						progress(ScanProgress{SourcePath: root, CurrentPath: path, VisitedFiles: visited, FoundItems: found})
 					}
@@ -405,13 +524,13 @@ func scanLibraryWithOptions(library Library, options ScanOptions, progress func(
 }
 
 type cachedDir struct {
-	items       []Item
+	items       []ScanExistingItem
 	modTimeUnix int64
 	hasChildDir bool
 	incomplete  bool
 }
 
-func buildExistingDirCache(existing map[string]Item, root string) map[string]cachedDir {
+func buildExistingDirCache(existing map[string]ScanExistingItem, root string) map[string]cachedDir {
 	cache := map[string]cachedDir{}
 	for _, item := range existing {
 		if item.Path == "" || item.Dir == "" {
@@ -459,15 +578,17 @@ func unchangedCachedDir(path string, info os.FileInfo, cache map[string]cachedDi
 	if info == nil || info.ModTime().UnixNano() != entry.modTimeUnix {
 		return nil, false
 	}
-	items := append([]Item(nil), entry.items...)
+	items := append([]ScanExistingItem(nil), entry.items...)
 	sort.Slice(items, func(i, j int) bool { return items[i].Path < items[j].Path })
+	result := make([]Item, 0, len(items))
 	for _, item := range items {
 		fileInfo, err := os.Stat(item.Path)
-		if err != nil || !itemUnchanged(item, item.Path, fileInfo, requireMediaInfo) {
+		if err != nil || !scanExistingUnchanged(item, item.Path, fileInfo, requireMediaInfo) {
 			return nil, false
 		}
+		result = append(result, item.ToItem())
 	}
-	return items, true
+	return result, true
 }
 
 func pathWithinRoot(path string, root string) bool {
@@ -620,6 +741,28 @@ func itemUnchanged(existing Item, path string, info os.FileInfo, requireMediaInf
 	return true
 }
 
+func scanExistingUnchanged(existing ScanExistingItem, path string, info os.FileInfo, requireMediaInfo bool) bool {
+	if existing.Path != path {
+		return false
+	}
+	if existing.FileSizeBytes != fileSizeBytes(info) {
+		return false
+	}
+	if existing.ModTimeUnix == 0 || existing.ModTimeUnix != fileModTimeUnix(info) {
+		return false
+	}
+	if existing.NFOModTimeUnix != firstNFOModTime(existing.ToItem()) {
+		return false
+	}
+	if existing.HasNFO && !existing.HasNFOSummary {
+		return false
+	}
+	if requireMediaInfo && !existing.MediaInfoScanned {
+		return false
+	}
+	return true
+}
+
 func nfoSummaryMissing(item Item) bool {
 	return item.MatchedName == "" || item.Overview == "" || item.MatchedID == 0 && item.IMDBID == ""
 }
@@ -640,6 +783,14 @@ func dirModTimeUnix(dir string) int64 {
 }
 
 func addDirectoryModTime(item Item, dir string) Item {
+	if item.DirModTimeUnix != 0 {
+		return item
+	}
+	item.DirModTimeUnix = dirModTimeUnix(dir)
+	return item
+}
+
+func addScanDirectoryModTime(item ScanExistingItem, dir string) ScanExistingItem {
 	if item.DirModTimeUnix != 0 {
 		return item
 	}

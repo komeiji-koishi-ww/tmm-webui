@@ -139,7 +139,7 @@ func TestUnchangedCachedDirRequiresCurrentFileState(t *testing.T) {
 	library := Library{ID: "movies", Type: "movie", Path: root, Paths: []string{root}}
 	item := NewItemFromFileInfo(library, root, videoPath, info)
 	item.DirModTimeUnix = dirInfo.ModTime().UnixNano()
-	cache := buildExistingDirCache(map[string]Item{item.ID: item}, root)
+	cache := buildExistingDirCache(BuildScanExistingIndex(map[string]Item{item.ID: item}), root)
 
 	items, ok := unchangedCachedDir(movieDir, dirInfo, cache, false)
 	if !ok || len(items) != 1 || items[0].ID != item.ID {
