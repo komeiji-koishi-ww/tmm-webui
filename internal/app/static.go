@@ -17,7 +17,11 @@ var staticFS embed.FS
 func staticHandler() http.Handler {
 	devStatic := strings.TrimSpace(os.Getenv("TMMWEB_DEV_STATIC"))
 	if devStatic != "" && devStatic != "0" && !strings.EqualFold(devStatic, "false") {
-		return staticFileHandler(os.DirFS("internal/app/static"), true)
+		staticDir := strings.TrimSpace(os.Getenv("TMMWEB_STATIC_DIR"))
+		if staticDir == "" {
+			staticDir = "internal/app/static"
+		}
+		return staticFileHandler(os.DirFS(staticDir), true)
 	}
 	sub, err := fs.Sub(staticFS, "static")
 	if err != nil {
