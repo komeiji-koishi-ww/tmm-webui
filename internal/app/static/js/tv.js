@@ -39,7 +39,7 @@ export const tvMixin = {
             ...season,
             items: this.sortEpisodes(season.items.slice()),
           }))
-          .sort((a, b) => a.season - b.season),
+          .sort((a, b) => this.compareTVSeasons(a, b)),
       }));
     },
     tvTreeRows() {

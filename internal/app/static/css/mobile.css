@@ -17,7 +17,6 @@
   width: 100%;
   max-width: 100%;
   overscroll-behavior-x: none;
-  touch-action: pan-y;
 }
 
 .mobile-shell * {
@@ -34,8 +33,6 @@
   overflow-x: hidden;
   overflow-y: visible;
   overscroll-behavior-x: none;
-  touch-action: pan-y;
-  -webkit-overflow-scrolling: touch;
 }
 
 .mobile-screen > * {
@@ -213,7 +210,6 @@
   gap: 10px;
   overflow-x: hidden;
   overscroll-behavior-x: none;
-  touch-action: pan-y;
 }
 
 .mobile-media-card {
@@ -229,7 +225,6 @@
   color: var(--mobile-ink);
   text-align: left;
   cursor: pointer;
-  touch-action: pan-y;
 }
 
 .mobile-media-card.selected {
@@ -486,6 +481,7 @@
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior-x: none;
+    -webkit-overflow-scrolling: touch;
     background: #fafcfc;
   }
 

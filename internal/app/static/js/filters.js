@@ -743,18 +743,21 @@ export const filtersMixin = {
         return this.compareText(
           a.titleGuess || a.fileName,
           b.titleGuess || b.fileName,
-        );
+        ) * direction;
       });
     },
     sortEpisodes(items) {
-      return items.sort(
-        (a, b) =>
+      const direction = this.sortDirection === "desc" ? -1 : 1;
+      return items.sort((a, b) => {
+        const result =
+          this.compareSortValue(a, b, this.sortKey) ||
           (a.season || 0) - (b.season || 0) ||
           (a.episode || 0) - (b.episode || 0) ||
           this.compareEpisodeList(a.episodes, b.episodes) ||
           this.compareText(a.fileName, b.fileName) ||
-          this.compareText(a.path, b.path),
-      );
+          this.compareText(a.path, b.path);
+        return result * direction;
+      });
     },
     compareEpisodeList(a = [], b = []) {
       const left = Array.isArray(a) ? a : [];
@@ -779,8 +782,20 @@ export const filtersMixin = {
           this.sortKey,
         );
         if (result !== 0) return result * direction;
-        return this.compareText(a.title, b.title);
+        return this.compareText(a.title, b.title) * direction;
       });
+    },
+    compareTVSeasons(a, b) {
+      const direction = this.sortDirection === "desc" ? -1 : 1;
+      const firstA = a.items && a.items[0] ? a.items[0] : {};
+      const firstB = b.items && b.items[0] ? b.items[0] : {};
+      if (this.sortKey === "episodeCount")
+        return ((a.items || []).length - (b.items || []).length) * direction;
+      const result =
+        this.compareSortValue(firstA, firstB, this.sortKey) ||
+        (a.season || 0) - (b.season || 0) ||
+        this.compareText(a.title, b.title);
+      return result * direction;
     },
     compareSortValue(a, b, key) {
       if (
