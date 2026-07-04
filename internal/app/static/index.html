@@ -7,15 +7,15 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
     />
     <title>TMM WebUI</title>
-    <script src="/vue.global.prod.js?v=mobile-ui-8"></script>
+    <script src="/vue.global.prod.js?v=mobile-ui-9"></script>
     <link
       rel="stylesheet"
-      href="/vendor/element-plus/index.css?v=mobile-ui-8"
+      href="/vendor/element-plus/index.css?v=mobile-ui-9"
     />
-    <script src="/vendor/element-plus/index.full.min.js?v=mobile-ui-8"></script>
-    <script src="/vendor/element-plus-icons/index.iife.min.js?v=mobile-ui-8"></script>
-    <link rel="stylesheet" href="/styles.css?v=mobile-ui-8" />
-    <link rel="stylesheet" href="/css/mobile.css?v=mobile-ui-8" />
+    <script src="/vendor/element-plus/index.full.min.js?v=mobile-ui-9"></script>
+    <script src="/vendor/element-plus-icons/index.iife.min.js?v=mobile-ui-9"></script>
+    <link rel="stylesheet" href="/styles.css?v=mobile-ui-9" />
+    <link rel="stylesheet" href="/css/mobile.css?v=mobile-ui-9" />
   </head>
   <body>
     <div id="app" v-cloak>
@@ -35,7 +35,7 @@
               <el-button
                 :icon="MagicStick"
                 circle
-                :disabled="!selectedItem"
+                :disabled="!selectedSummary"
                 @click="openChooserFromSelected"
               ></el-button>
             </header>
@@ -85,7 +85,7 @@
               <section class="mobile-action-grid">
                 <el-button
                   type="primary"
-                  :disabled="!selectedItem || busy"
+                  :disabled="!selectedSummary || busy"
                   @click="openChooserFromSelected"
                   >刮削</el-button
                 >
@@ -366,7 +366,7 @@
               <el-button
                 type="primary"
                 :icon="MagicStick"
-                :disabled="!selectedItem || busy"
+                :disabled="!selectedSummary || busy"
                 @click="openChooserFromSelected"
                 >搜索 / 刮削</el-button
               >
@@ -576,7 +576,7 @@
                 <el-button
                   type="success"
                   :icon="MagicStick"
-                  :disabled="!selectedItem || busy"
+                  :disabled="!selectedSummary || busy"
                   @click="openChooserFromSelected"
                   >搜索 / 刮削</el-button
                 >
@@ -1882,6 +1882,6 @@
         </el-dialog>
       </el-config-provider>
     </div>
-    <script type="module" src="/app.js?v=mobile-ui-8"></script>
+    <script type="module" src="/app.js?v=mobile-ui-9"></script>
   </body>
 </html>

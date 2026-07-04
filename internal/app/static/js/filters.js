@@ -412,6 +412,8 @@ export const filtersMixin = {
       });
     },
     selectedCountText() {
+      if (!this.selectedItem && this.selectedEntity)
+        return `已选择 1 / ${this.visibleItems.length}`;
       if (!this.selectedItem) return "未选择";
       if (this.activeModule === "tvshow" && this.selectedItemIds.length > 1)
         return `已选择 ${this.selectedItemIds.length} / ${this.visibleItems.length}`;

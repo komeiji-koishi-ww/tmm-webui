@@ -1,7 +1,6 @@
 export const chooserMixin = {
   methods: {
     openChooserFromSelected() {
-      if (!this.selectedItem) return;
       if (this.selectedEntity && this.selectedEntity.kind === "show") {
         const show = this.selectedEntity.payload;
         const first = this.firstTVItem(show);
@@ -31,6 +30,7 @@ export const chooserMixin = {
         });
         return;
       }
+      if (!this.selectedItem) return;
       this.openChooser({
         scope: this.selectedItem.kind === "tvshow" ? "episode" : "movie",
         mediaType: this.selectedItem.kind === "tvshow" ? "tvshow" : "movie",

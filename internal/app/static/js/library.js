@@ -362,6 +362,10 @@ export const libraryMixin = {
             ? this.mergeLoadedItems(this.items, loadedItems)
             : loadedItems;
         this.ensureMoviePageInRange();
+        if (!quiet) {
+          await this.$nextTick();
+          this.selectInitialDesktopItem();
+        }
         if (scrollAnchor) {
           await this.$nextTick();
           this.restoreMediaScrollAnchor(scrollAnchor);
@@ -376,6 +380,25 @@ export const libraryMixin = {
       } finally {
         if (!quiet) this.busy = false;
       }
+    },
+    selectInitialDesktopItem() {
+      if (this.isMobile || this.selectedItem || this.selectedEntity) return;
+      if (this.activeModule === "movie") {
+        const firstMovie = this.sortedMovieRows[0];
+        if (firstMovie) this.selectItem(firstMovie);
+        return;
+      }
+      const firstTVRow = this.tvTreeRows[0];
+      if (!firstTVRow) return;
+      if (firstTVRow.level === "show") {
+        this.selectTvGroup("show", firstTVRow.payload);
+        return;
+      }
+      if (firstTVRow.level === "season") {
+        this.selectTvGroup("season", firstTVRow.payload.season);
+        return;
+      }
+      if (firstTVRow.level === "episode") this.selectItem(firstTVRow.payload);
     },
     mergeLoadedItems(currentItems, loadedItems) {
       const loadedByID = new Map(loadedItems.map((item) => [item.id, item]));

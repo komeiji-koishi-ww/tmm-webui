@@ -398,21 +398,17 @@ export const tvMixin = {
     },
     selectTvGroup(kind, payload) {
       if (kind === "show") {
+        this.selectedItem = null;
         this.selectedItemIds = [];
         this.lastSelectedTVItemId = "";
         this.tvRangeAnchorItemId = "";
         this.selectedEntity = { kind: "show", payload };
-        const firstSeason = payload.seasons[0];
-        if (firstSeason && firstSeason.items[0]) {
-          this.selectItem(firstSeason.items[0]);
-          this.selectedEntity = { kind: "show", payload };
-        }
       }
-      if (kind === "season" && payload.items[0]) {
+      if (kind === "season") {
+        this.selectedItem = null;
         this.selectedItemIds = [];
         this.lastSelectedTVItemId = "";
         this.tvRangeAnchorItemId = "";
-        this.selectItem(payload.items[0]);
         this.selectedEntity = { kind: "season", payload };
       }
     },
