@@ -109,6 +109,9 @@ export const mobileMixin = {
       }
     },
     mobileLibraryScreenElement() {
+      if (this.isMobile && typeof document !== "undefined") {
+        return document.scrollingElement || document.documentElement;
+      }
       const ref = this.$refs.mobileLibraryScreen;
       return ref && (ref.$el || ref);
     },
@@ -125,7 +128,10 @@ export const mobileMixin = {
             return;
           }
           const screen = this.mobileLibraryScreenElement();
-          if (screen) screen.scrollTop = anchor;
+          if (screen) {
+            screen.scrollTop = anchor;
+            if (typeof window !== "undefined") window.scrollTo(0, anchor);
+          }
         });
       });
     },
