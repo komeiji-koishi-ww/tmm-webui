@@ -13,6 +13,7 @@ const { createApp } = Vue;
 const ElementIcons = window.ElementPlusIconsVue || {};
 const {
   ArrowUp,
+  ArrowLeft,
   EditPen,
   Filter,
   Folder,
@@ -40,6 +41,7 @@ const app = createApp({
   data() {
     return createInitialState({
       ArrowUp,
+      ArrowLeft,
       EditPen,
       Filter,
       Folder,

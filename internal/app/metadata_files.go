@@ -159,6 +159,7 @@ func artworkPath(item media.Item, artType string, scope string) string {
 	if item.Kind == "tvshow" {
 		showDir := tvShowRootDir(item)
 		seasonDir := tvSeasonDir(item, showDir)
+		tvDirs := tvArtworkDirs(item, showDir, seasonDir)
 		switch scope {
 		case "show":
 			dirs = append(dirs, showDir)
@@ -169,21 +170,21 @@ func artworkPath(item media.Item, artType string, scope string) string {
 			}
 		case "season":
 			if artType == "poster" && item.Season > 0 {
-				dirs = append(dirs, seasonDir, showDir)
+				dirs = append(dirs, tvDirs...)
 				names = append(names, seasonPosterNames(item.Season)...)
 				names = append(names, defaultTVShowPosterNames()...)
 			} else if artType == "fanart" && item.Season > 0 {
-				dirs = append(dirs, seasonDir, showDir)
+				dirs = append(dirs, tvDirs...)
 				names = append(names, seasonFanartNames(item.Season)...)
 				names = append(names, defaultTVShowFanartNames()...)
 			}
 		default:
 			if artType == "poster" && item.Season > 0 {
-				dirs = append(dirs, seasonDir, showDir)
+				dirs = append(dirs, tvDirs...)
 				names = append(names, seasonPosterNames(item.Season)...)
 				names = append(names, defaultTVShowPosterNames()...)
 			} else if artType == "fanart" {
-				dirs = append(dirs, item.Dir, seasonDir, showDir)
+				dirs = append(dirs, tvDirs...)
 				names = append(names, episodeThumbNames(item)...)
 			}
 		}
@@ -317,6 +318,35 @@ func tvSeasonDir(item media.Item, showDir string) string {
 	return showDir
 }
 
+func tvArtworkDirs(item media.Item, showDir string, seasonDir string) []string {
+	candidates := []string{
+		item.Dir,
+		seasonDir,
+		showDir,
+	}
+	if item.Dir != "" {
+		parent := filepath.Dir(item.Dir)
+		if parent != "." && parent != string(filepath.Separator) {
+			candidates = append(candidates, parent)
+			grandparent := filepath.Dir(parent)
+			if grandparent != "." && grandparent != string(filepath.Separator) {
+				candidates = append(candidates, grandparent)
+			}
+		}
+	}
+	seen := map[string]bool{}
+	dirs := make([]string, 0, len(candidates))
+	for _, dir := range candidates {
+		dir = strings.TrimSpace(dir)
+		if dir == "" || seen[dir] {
+			continue
+		}
+		seen[dir] = true
+		dirs = append(dirs, dir)
+	}
+	return dirs
+}
+
 func seasonPosterNames(season int) []string {
 	return []string{seasonFilename(season, "jpg", "-poster"), fmt.Sprintf("season%d-poster.jpg", season)}
 }
@@ -329,6 +359,7 @@ func episodeThumbNames(item media.Item) []string {
 	fileBase := strings.TrimSuffix(item.FileName, filepath.Ext(item.FileName))
 	return []string{
 		fileBase + "-thumb.jpg",
+		fileBase + "-poster.jpg",
 	}
 }
 
