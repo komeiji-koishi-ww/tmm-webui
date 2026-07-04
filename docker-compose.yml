@@ -7,10 +7,9 @@ services:
     environment:
       TMMWEB_DATA: /config
       TMMWEB_SCAN_MEDIAINFO: "1"
-      TMMWEB_MEDIAINFO_WORKERS: "2"
+      TMMWEB_MEDIAINFO_WORKERS: "1"
       TMDB_API_KEY: "${TMDB_API_KEY:-}"
     volumes:
       - ./data:/config
       - /path/to/media:/media
     restart: unless-stopped
-

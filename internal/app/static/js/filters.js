@@ -1,4 +1,4 @@
-import { GENRE_ZH } from "./config.js";
+import { GENRE_ZH, GENRE_ZH_LOOKUP } from "./config.js";
 
 export const filtersMixin = {
   computed: {
@@ -861,7 +861,7 @@ export const filtersMixin = {
     localizeGenre(genre) {
       const text = String(genre || "").trim();
       if (!text) return "";
-      return GENRE_ZH[text] || text;
+      return GENRE_ZH[text] || GENRE_ZH_LOOKUP[text.toLowerCase()] || text;
     },
     localizedGenres(genres) {
       const seen = new Set();

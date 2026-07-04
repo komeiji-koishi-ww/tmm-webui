@@ -68,6 +68,24 @@ const app = createApp({
     },
   },
   watch: {
+    mobileDetailOpen(open, wasOpen) {
+      this.handleMobileSurfaceChange("detail", open, wasOpen);
+    },
+    settingsOpen(open, wasOpen) {
+      this.handleMobileSurfaceChange("settings", open, wasOpen);
+    },
+    "browser.open"(open, wasOpen) {
+      this.handleMobileSurfaceChange("browser", open, wasOpen);
+    },
+    "localRename.open"(open, wasOpen) {
+      this.handleMobileSurfaceChange("rename", open, wasOpen);
+    },
+    "filterEditor.open"(open, wasOpen) {
+      this.handleMobileSurfaceChange("filters", open, wasOpen);
+    },
+    "chooser.open"(open, wasOpen) {
+      this.handleMobileSurfaceChange("chooser", open, wasOpen);
+    },
     query() {
       this.resetMoviePage();
     },
@@ -101,7 +119,9 @@ const app = createApp({
     window.addEventListener("mousemove", this.handleResizeMove);
     window.addEventListener("mouseup", this.stopResize);
     window.addEventListener("resize", this.updateViewportMode);
+    window.addEventListener("popstate", this.handleMobilePopState);
     this.updateViewportMode();
+    this.initMobileHistory();
     this.status = "就绪";
   },
   beforeUnmount() {
@@ -115,6 +135,7 @@ const app = createApp({
     window.removeEventListener("mousemove", this.handleResizeMove);
     window.removeEventListener("mouseup", this.stopResize);
     window.removeEventListener("resize", this.updateViewportMode);
+    window.removeEventListener("popstate", this.handleMobilePopState);
   },
   methods: {
     async api(path, options = {}) {

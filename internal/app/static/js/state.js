@@ -21,6 +21,13 @@ export function createInitialState(icons = {}) {
     mobileDetailOpen: false,
     mobileTVRenameSeasonKey: "",
     mobileTVRenameSelectedIds: [],
+    mobileLibraryScrollTop: 0,
+    mobileHistory: {
+      initialized: false,
+      stack: [],
+      closingFromPop: false,
+      ignoreNextPop: false,
+    },
     selectedItemIds: [],
     lastSelectedTVItemId: "",
     tvRangeAnchorItemId: "",

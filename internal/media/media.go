@@ -274,6 +274,17 @@ func ScanLibraryIDsWithOptions(library Library, options ScanOptions, progress fu
 	return ids, nil
 }
 
+func ScanLibraryIDSetWithOptions(library Library, options ScanOptions, progress func(ScanProgress), shouldCancel func() bool) (map[string]struct{}, error) {
+	ids := map[string]struct{}{}
+	err := scanLibraryWithOptions(library, options, progress, shouldCancel, func(item Item) {
+		ids[item.ID] = struct{}{}
+	})
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
 func scanLibraryWithOptions(library Library, options ScanOptions, progress func(ScanProgress), shouldCancel func() bool, collect func(Item)) error {
 	visited := 0
 	found := 0
@@ -471,17 +482,17 @@ func pathWithinRoot(path string, root string) bool {
 
 func defaultScanWorkers() int {
 	if configured, err := strconv.Atoi(strings.TrimSpace(os.Getenv("TMMWEB_SCAN_WORKERS"))); err == nil && configured > 0 {
-		if configured > 32 {
-			return 32
+		if configured > 16 {
+			return 16
 		}
 		return configured
 	}
 	workers := runtime.NumCPU()
-	if workers < 2 {
-		return 2
+	if workers < 1 {
+		return 1
 	}
-	if workers > 8 {
-		return 8
+	if workers > 4 {
+		return 4
 	}
 	return workers
 }
@@ -562,21 +573,12 @@ func newItem(library Library, sourcePath string, path string, fileName string, i
 		item.HasFanart = hasAny(showDir, tvShowFanartCandidates(item.Season, fileName))
 	}
 	if probeMediaInfo {
-		var wg sync.WaitGroup
-		nfoItem := item
-		var probed MediaInfoProbe
-		wg.Add(2)
-		go func() {
-			defer wg.Done()
-			applyNFOSummary(&nfoItem)
-		}()
-		go func() {
-			defer wg.Done()
-			probed = ProbeMediaInfo(path, info)
-		}()
-		wg.Wait()
-		item = nfoItem
-		if probed.Scanned {
+		applyNFOSummary(&item)
+		if itemHasUsableMediaInfo(item) {
+			item.MediaInfoScanned = true
+			return item
+		}
+		if probed := ProbeMediaInfo(path, info); probed.Scanned {
 			item.FileSizeBytes = probed.FileSizeBytes
 			item.FileSize = probed.FileSize
 			if probed.VideoFormat != "" {
@@ -741,13 +743,17 @@ func ProbeMediaInfo(path string, info os.FileInfo) MediaInfoProbe {
 	defer release()
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
-	output, err := exec.CommandContext(ctx, ffprobe,
+	cmd := exec.CommandContext(ctx, ffprobe,
 		"-v", "error",
 		"-show_entries", "stream=codec_type,codec_name,width,height,display_aspect_ratio,duration,channels:stream_tags=language",
 		"-of", "json",
 		path,
-	).Output()
+	)
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		return probe
+	}
+	if err := cmd.Start(); err != nil {
 		return probe
 	}
 	var payload struct {
@@ -762,7 +768,9 @@ func ProbeMediaInfo(path string, info os.FileInfo) MediaInfoProbe {
 			Tags               map[string]string `json:"tags"`
 		} `json:"streams"`
 	}
-	if err := json.Unmarshal(output, &payload); err != nil {
+	decodeErr := json.NewDecoder(stdout).Decode(&payload)
+	waitErr := cmd.Wait()
+	if decodeErr != nil || waitErr != nil {
 		return probe
 	}
 	for _, stream := range payload.Streams {
@@ -874,7 +882,7 @@ var (
 
 func acquireFFProbeSlot() func() {
 	ffprobeSlotsOnce.Do(func() {
-		workers := 2
+		workers := 1
 		if raw := strings.TrimSpace(os.Getenv("TMMWEB_MEDIAINFO_WORKERS")); raw != "" {
 			if parsed, err := strconv.Atoi(raw); err == nil {
 				workers = parsed
@@ -883,8 +891,8 @@ func acquireFFProbeSlot() func() {
 		if workers < 1 {
 			workers = 1
 		}
-		if workers > 8 {
-			workers = 8
+		if workers > 4 {
+			workers = 4
 		}
 		ffprobeSlots = make(chan struct{}, workers)
 	})
@@ -957,6 +965,14 @@ func EnsureLightweightMediaInfo(item Item) Item {
 		item.AudioCodec = audioCodec
 	}
 	return item
+}
+
+func itemHasUsableMediaInfo(item Item) bool {
+	return item.FileSizeBytes > 0 &&
+		item.FileSize != "" &&
+		item.VideoFormat != "" &&
+		item.AudioCodec != "" &&
+		(len(item.VideoStreams) > 0 || len(item.AudioStreams) > 0)
 }
 
 func FormatFileSize(size int64) string {

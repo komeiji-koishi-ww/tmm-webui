@@ -84,7 +84,7 @@
                   type="primary"
                   :disabled="!selectedItem || busy"
                   @click="openChooserFromSelected"
-                  >搜刮</el-button
+                  >刮削</el-button
                 >
                 <el-button
                   :disabled="!selectedItem"
@@ -132,7 +132,11 @@
             <el-empty v-else description="选择一个媒体条目"></el-empty>
           </main>
 
-          <main v-else-if="mobileTab === 'library'" class="mobile-screen">
+          <main
+            v-else-if="mobileTab === 'library'"
+            ref="mobileLibraryScreen"
+            class="mobile-screen"
+          >
             <header class="mobile-home-header">
               <div class="brand-mark">T</div>
               <div>
@@ -237,6 +241,7 @@
               <button
                 v-for="item in mobileMovieRows"
                 :key="item.id"
+                :data-row-key="item.id"
                 :class="['mobile-media-card', selectedItem && selectedItem.id === item.id ? 'selected' : '']"
                 type="button"
                 @click="openMobileItem(item, $event)"
@@ -268,6 +273,7 @@
               <article
                 v-for="row in tvTreeRows"
                 :key="row.key"
+                :data-row-key="row.key"
                 :class="['mobile-media-card', 'tv-' + row.level, selectedItem && row.payload && row.payload.id === selectedItem.id ? 'selected' : '', row.level === 'episode' && mobileEpisodeRenameSelected(row.payload) ? 'rename-selected' : '', isMobileSeasonRenameActive(row) ? 'rename-mode' : '', row.level === 'show' || row.level === 'season' ? 'has-actions' : '']"
                 @click="handleMobileTVRow(row, $event)"
               >
@@ -293,7 +299,7 @@
                     plain
                     :disabled="busy"
                     @click.stop="openMobileTVChooser(row, $event)"
-                    >搜刮</el-button
+                    >刮削</el-button
                   >
                   <template v-else>
                     <el-button
@@ -302,7 +308,7 @@
                       plain
                       :disabled="busy"
                       @click.stop="openMobileTVChooser(row, $event)"
-                      >搜刮本季</el-button
+                      >刮削本季</el-button
                     >
                     <el-button
                       v-if="isSeasonExpanded(row.payload.season.key) && !isMobileSeasonRenameActive(row)"
@@ -337,7 +343,7 @@
 
           <main v-else-if="mobileTab === 'scrape'" class="mobile-screen">
             <header class="mobile-page-header">
-              <h1>搜刮</h1>
+              <h1>刮削</h1>
               <p>
                 {{ selectedItem ? selectedSummary.title :
                 '先从媒体库选择一个媒体' }}
@@ -643,6 +649,7 @@
                     <div
                       v-for="entry in virtualMovieRows"
                       :key="entry.item.id"
+                      :data-row-key="entry.item.id"
                       :class="['virtual-table-row', selectedItem && selectedItem.id === entry.item.id ? 'current-row' : '']"
                       :style="{ ...movieGridStyle, transform: 'translateY(' + entry.top + 'px)' }"
                       @click="selectItem(entry.item, $event)"

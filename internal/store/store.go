@@ -149,6 +149,10 @@ func (s *Store) PruneLibraryItemIDs(libraryID string, currentIDs []string) error
 	for _, id := range currentIDs {
 		current[id] = struct{}{}
 	}
+	return s.PruneLibraryItemIDSet(libraryID, current)
+}
+
+func (s *Store) PruneLibraryItemIDSet(libraryID string, current map[string]struct{}) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket(itemsBucket)
 		var staleKeys [][]byte

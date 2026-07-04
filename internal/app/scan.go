@@ -76,7 +76,7 @@ func (s *Server) runScanTask(taskID string, library media.Library) {
 		}
 	}
 	s.mu.Unlock()
-	currentIDs, err := media.ScanLibraryIDsWithOptions(library, media.ScanOptions{
+	currentIDSet, err := media.ScanLibraryIDSetWithOptions(library, media.ScanOptions{
 		Existing:          existing,
 		ProbeMediaInfo:    scanMediaInfoEnabled(),
 		SkipUnchangedDirs: scanSkipUnchangedDirsEnabled(),
@@ -130,15 +130,11 @@ func (s *Server) runScanTask(taskID string, library media.Library) {
 		_ = s.store.SaveTask(task.toRecord())
 		return
 	}
-	if err := s.store.PruneLibraryItemIDs(library.ID, currentIDs); err != nil {
+	if err := s.store.PruneLibraryItemIDSet(library.ID, currentIDSet); err != nil {
 		task.State = "failed"
 		task.Error = err.Error()
 		_ = s.store.SaveTask(task.toRecord())
 		return
-	}
-	currentIDSet := make(map[string]struct{}, len(currentIDs))
-	for _, id := range currentIDs {
-		currentIDSet[id] = struct{}{}
 	}
 	for id, item := range s.items {
 		if item.LibraryID == library.ID {
@@ -148,8 +144,8 @@ func (s *Server) runScanTask(taskID string, library media.Library) {
 		}
 	}
 	task.State = "completed"
-	task.ResultCount = len(currentIDs)
-	task.FoundItems = len(currentIDs)
+	task.ResultCount = len(currentIDSet)
+	task.FoundItems = len(currentIDSet)
 	_ = s.store.SaveTask(task.toRecord())
 }
 

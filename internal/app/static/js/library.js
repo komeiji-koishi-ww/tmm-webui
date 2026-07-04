@@ -386,6 +386,7 @@ export const libraryMixin = {
       return merged;
     },
     mediaScrollElement() {
+      if (this.isMobile) return this.mobileLibraryScreenElement();
       if (this.activeModule === "movie") return this.movieScrollerElement();
       const ref = this.$refs.mediaScroller;
       return Array.isArray(ref) ? ref.find(Boolean) : ref;

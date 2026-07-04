@@ -123,9 +123,7 @@ export const chooserMixin = {
           artwork: tv
             ? this.scraperSettings.tvShowScrapeImages
             : this.scraperSettings.movieScrapeImages,
-          overwrite: tv
-            ? this.scraperSettings.tvShowScrapeOverwrite
-            : this.scraperSettings.movieScrapeOverwrite,
+          overwrite: true,
           renameAfterScrape: true,
           showMetadata: this.scraperSettings.tvShowScrapeMetadata,
           episodeMetadata: this.scraperSettings.tvShowEpisodeMetadata && tv,

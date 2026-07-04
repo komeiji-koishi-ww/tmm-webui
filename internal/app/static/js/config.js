@@ -144,14 +144,27 @@ export const GENRE_ZH = {
   War: "战争",
   Western: "西部",
   "Action & Adventure": "动作冒险",
+  Adult: "成人",
+  "Film-Noir": "黑色电影",
+  "Game Show": "游戏节目",
   Kids: "儿童",
+  "Mini-Series": "迷你剧",
   News: "新闻",
   Reality: "真人秀",
+  "Reality-TV": "真人秀",
   "Sci-Fi & Fantasy": "科幻奇幻",
+  "Science-Fiction": "科幻",
+  Short: "短片",
   Soap: "肥皂剧",
+  Sport: "体育",
   Talk: "脱口秀",
+  "Talk Show": "脱口秀",
   "War & Politics": "战争政治",
 };
+
+export const GENRE_ZH_LOOKUP = Object.fromEntries(
+  Object.entries(GENRE_ZH).map(([key, value]) => [key.toLowerCase(), value]),
+);
 
 export const TMM_RENAMER_TOKENS = [
   "${title}",
