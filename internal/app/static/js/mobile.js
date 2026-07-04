@@ -35,9 +35,21 @@ export const mobileMixin = {
       }
       if (open) {
         this.pushMobileSurface(kind);
+        if (kind === "detail") this.scrollMobileSurfaceToTop();
         return;
       }
       this.consumeMobileSurface(kind);
+    },
+    scrollMobileSurfaceToTop() {
+      if (typeof window === "undefined" || typeof document === "undefined")
+        return;
+      this.$nextTick(() => {
+        window.requestAnimationFrame(() => {
+          const scroller = document.scrollingElement || document.documentElement;
+          if (scroller) scroller.scrollTop = 0;
+          window.scrollTo(0, 0);
+        });
+      });
     },
     pushMobileSurface(kind) {
       if (typeof window === "undefined" || !window.history) return;
