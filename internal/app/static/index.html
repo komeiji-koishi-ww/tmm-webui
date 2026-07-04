@@ -7,15 +7,15 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
     />
     <title>TMM WebUI</title>
-    <script src="/vue.global.prod.js?v=mobile-ui-6"></script>
+    <script src="/vue.global.prod.js?v=mobile-ui-7"></script>
     <link
       rel="stylesheet"
-      href="/vendor/element-plus/index.css?v=mobile-ui-6"
+      href="/vendor/element-plus/index.css?v=mobile-ui-7"
     />
-    <script src="/vendor/element-plus/index.full.min.js?v=mobile-ui-6"></script>
-    <script src="/vendor/element-plus-icons/index.iife.min.js?v=mobile-ui-6"></script>
-    <link rel="stylesheet" href="/styles.css?v=mobile-ui-6" />
-    <link rel="stylesheet" href="/css/mobile.css?v=mobile-ui-6" />
+    <script src="/vendor/element-plus/index.full.min.js?v=mobile-ui-7"></script>
+    <script src="/vendor/element-plus-icons/index.iife.min.js?v=mobile-ui-7"></script>
+    <link rel="stylesheet" href="/styles.css?v=mobile-ui-7" />
+    <link rel="stylesheet" href="/css/mobile.css?v=mobile-ui-7" />
   </head>
   <body>
     <div id="app" v-cloak>
@@ -241,13 +241,16 @@
             </section>
 
             <section v-if="activeModule === 'movie'" class="mobile-card-list">
-              <button
+              <article
                 v-for="item in mobileMovieRows"
                 :key="item.id"
                 :data-row-key="item.id"
                 :class="['mobile-media-card', selectedItem && selectedItem.id === item.id ? 'selected' : '']"
-                type="button"
+                role="button"
+                tabindex="0"
                 @click="openMobileItem(item, $event)"
+                @keydown.enter.prevent="openMobileItem(item, $event)"
+                @keydown.space.prevent="openMobileItem(item, $event)"
               >
                 <strong>{{ item.titleGuess }}</strong>
                 <span
@@ -265,7 +268,7 @@
                   >{{ item.videoFormat || '-' }} · {{ item.audioCodec || '-' }}
                   · {{ item.fileSize || '-' }}</small
                 >
-              </button>
+              </article>
               <el-empty
                 v-if="!mobileMovieRows.length"
                 description="没有匹配条目"
@@ -1879,6 +1882,6 @@
         </el-dialog>
       </el-config-provider>
     </div>
-    <script type="module" src="/app.js?v=mobile-ui-6"></script>
+    <script type="module" src="/app.js?v=mobile-ui-7"></script>
   </body>
 </html>

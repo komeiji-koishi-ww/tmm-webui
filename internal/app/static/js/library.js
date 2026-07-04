@@ -229,11 +229,14 @@ export const libraryMixin = {
       this.poller = setInterval(async () => {
         if (!this.selectedLibrary) return;
         await this.loadTasks(this.selectedLibrary, true);
-        if (
-          this.selectedTask &&
-          (this.selectedTask.state === "running" ||
-            this.selectedTask.state === "completed")
-        ) {
+        const task = this.selectedTask;
+        if (!task) return;
+        if (task.state === "running") {
+          await this.loadItems(this.selectedLibrary, true);
+          return;
+        }
+        if (task.state === "completed" && !this.completedTaskReloads[task.id]) {
+          this.completedTaskReloads[task.id] = true;
           await this.loadItems(this.selectedLibrary, true);
         }
       }, 1500);

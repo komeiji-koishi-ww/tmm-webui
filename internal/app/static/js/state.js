@@ -28,6 +28,7 @@ export function createInitialState(icons = {}) {
       closingFromPop: false,
       ignoreNextPop: false,
     },
+    completedTaskReloads: {},
     selectedItemIds: [],
     lastSelectedTVItemId: "",
     tvRangeAnchorItemId: "",
