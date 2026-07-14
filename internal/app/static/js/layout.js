@@ -60,9 +60,27 @@ export const layoutMixin = {
       this.layout.tvColumns = this.fittedColumnWidths("tvshow", tvColumns);
     },
     clampedInspectorWidth(value) {
-      const viewport = window.innerWidth || 1440;
-      const max = Math.max(360, Math.min(680, viewport - 640));
+      const max = this.maxInspectorWidth();
       return Math.min(max, Math.max(360, Number(value) || 440));
+    },
+    maxInspectorWidth(containerWidth = 0) {
+      const workbench =
+        this.$refs.workbench &&
+        (this.$refs.workbench.$el || this.$refs.workbench);
+      const rect =
+        workbench && workbench.getBoundingClientRect
+          ? workbench.getBoundingClientRect()
+          : null;
+      const width =
+        Number(containerWidth) ||
+        (rect && rect.width) ||
+        this.layout.viewportWidth ||
+        window.innerWidth ||
+        1440;
+
+      // Keep the list and inspector equally usable at the widest resize point.
+      // The 14px splitter is excluded so neither pane exceeds half the workbench.
+      return Math.max(360, Math.floor((width - 14) / 2));
     },
     loadColumnWidths(key, fallback) {
       try {
@@ -168,7 +186,7 @@ export const layoutMixin = {
       if (!resizing) return;
       const delta = event.clientX - resizing.startX;
       if (resizing.type === "workbench") {
-        const max = Math.max(360, Math.min(680, resizing.containerWidth - 640));
+        const max = this.maxInspectorWidth(resizing.containerWidth);
         this.layout.inspectorWidth = Math.min(
           max,
           Math.max(360, resizing.startWidth - delta),

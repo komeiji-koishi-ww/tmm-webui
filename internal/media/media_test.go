@@ -139,9 +139,10 @@ func TestUnchangedCachedDirRequiresCurrentFileState(t *testing.T) {
 	library := Library{ID: "movies", Type: "movie", Path: root, Paths: []string{root}}
 	item := NewItemFromFileInfo(library, root, videoPath, info)
 	item.DirModTimeUnix = dirInfo.ModTime().UnixNano()
-	cache := buildExistingDirCache(BuildScanExistingIndex(map[string]Item{item.ID: item}), root)
+	existing := BuildScanExistingIndex(map[string]Item{item.ID: item})
+	cache := buildExistingDirCache(existing, root)
 
-	items, ok := unchangedCachedDir(movieDir, dirInfo, cache, false)
+	items, ok := unchangedCachedDir(movieDir, dirInfo, cache, existing, false)
 	if !ok || len(items) != 1 || items[0].ID != item.ID {
 		t.Fatalf("expected unchanged directory cache hit, ok=%v items=%d", ok, len(items))
 	}
@@ -153,8 +154,25 @@ func TestUnchangedCachedDirRequiresCurrentFileState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := unchangedCachedDir(movieDir, dirInfo, cache, false); ok {
+	if _, ok := unchangedCachedDir(movieDir, dirInfo, cache, existing, false); ok {
 		t.Fatal("changed media file should invalidate unchanged directory cache")
+	}
+}
+
+func TestCompactCachedItemDropsStreamDetails(t *testing.T) {
+	item := Item{
+		TitleGuess:           "Example",
+		MediaDurationSeconds: 3600,
+		VideoStreams:         []VideoStream{{Codec: "HEVC", DurationSeconds: 3600}},
+		AudioStreams:         []AudioStream{{Codec: "EAC3", Language: "eng", Channels: 6}},
+		SubtitleStreams:      []SubtitleStream{{Language: "zho"}},
+	}
+	compact := CompactCachedItem(item)
+	if HasDetailedMediaInfo(compact) {
+		t.Fatal("compact item retained stream details")
+	}
+	if compact.TitleGuess != item.TitleGuess || compact.MediaDurationSeconds != item.MediaDurationSeconds {
+		t.Fatalf("compact item lost summary fields: %#v", compact)
 	}
 }
 

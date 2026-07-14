@@ -363,81 +363,103 @@ func (s *Server) handleItems(w http.ResponseWriter, r *http.Request) {
 }
 
 type itemListEntry struct {
-	ID            string   `json:"id"`
-	LibraryID     string   `json:"libraryId"`
-	SourcePath    string   `json:"sourcePath"`
-	Kind          string   `json:"kind"`
-	Path          string   `json:"path"`
-	Dir           string   `json:"dir"`
-	FileName      string   `json:"fileName"`
-	TitleGuess    string   `json:"titleGuess"`
-	YearGuess     string   `json:"yearGuess,omitempty"`
-	Original      string   `json:"originalTitle,omitempty"`
-	Overview      string   `json:"overview,omitempty"`
-	Runtime       int      `json:"runtime,omitempty"`
-	Rating        float64  `json:"rating,omitempty"`
-	ShowRating    float64  `json:"showRating,omitempty"`
-	Genres        []string `json:"genres,omitempty"`
-	Actors        []string `json:"actors,omitempty"`
-	Premiered     string   `json:"premiered,omitempty"`
-	DateAdded     string   `json:"dateAdded,omitempty"`
-	FileSize      string   `json:"fileSize,omitempty"`
-	FileSizeBytes int64    `json:"fileSizeBytes,omitempty"`
-	VideoFormat   string   `json:"videoFormat,omitempty"`
-	AudioCodec    string   `json:"audioCodec,omitempty"`
-	IMDBID        string   `json:"imdbId,omitempty"`
-	ShowGuess     string   `json:"showGuess,omitempty"`
-	Season        int      `json:"season,omitempty"`
-	Episode       int      `json:"episode,omitempty"`
-	Episodes      []int    `json:"episodes,omitempty"`
-	AirDate       string   `json:"airDate,omitempty"`
-	MediaType     string   `json:"mediaType"`
-	HasNFO        bool     `json:"hasNfo"`
-	HasPoster     bool     `json:"hasPoster"`
-	HasFanart     bool     `json:"hasFanart"`
-	HasSubtitle   bool     `json:"hasSubtitle"`
-	MatchedID     int      `json:"matchedId,omitempty"`
-	MatchedName   string   `json:"matchedName,omitempty"`
+	ID                   string   `json:"id"`
+	LibraryID            string   `json:"libraryId"`
+	SourcePath           string   `json:"sourcePath"`
+	Kind                 string   `json:"kind"`
+	Path                 string   `json:"path"`
+	Dir                  string   `json:"dir"`
+	FileName             string   `json:"fileName"`
+	TitleGuess           string   `json:"titleGuess"`
+	YearGuess            string   `json:"yearGuess,omitempty"`
+	Original             string   `json:"originalTitle,omitempty"`
+	Overview             string   `json:"overview,omitempty"`
+	Runtime              int      `json:"runtime,omitempty"`
+	Rating               float64  `json:"rating,omitempty"`
+	ShowRating           float64  `json:"showRating,omitempty"`
+	Genres               []string `json:"genres,omitempty"`
+	Actors               []string `json:"actors,omitempty"`
+	Premiered            string   `json:"premiered,omitempty"`
+	DateAdded            string   `json:"dateAdded,omitempty"`
+	FileSize             string   `json:"fileSize,omitempty"`
+	FileSizeBytes        int64    `json:"fileSizeBytes,omitempty"`
+	VideoFormat          string   `json:"videoFormat,omitempty"`
+	AudioCodec           string   `json:"audioCodec,omitempty"`
+	MediaDurationSeconds int      `json:"mediaDurationSeconds,omitempty"`
+	IMDBID               string   `json:"imdbId,omitempty"`
+	ShowGuess            string   `json:"showGuess,omitempty"`
+	Season               int      `json:"season,omitempty"`
+	Episode              int      `json:"episode,omitempty"`
+	Episodes             []int    `json:"episodes,omitempty"`
+	AirDate              string   `json:"airDate,omitempty"`
+	MediaType            string   `json:"mediaType"`
+	HasNFO               bool     `json:"hasNfo"`
+	HasPoster            bool     `json:"hasPoster"`
+	HasFanart            bool     `json:"hasFanart"`
+	HasSubtitle          bool     `json:"hasSubtitle"`
+	MatchedID            int      `json:"matchedId,omitempty"`
+	MatchedName          string   `json:"matchedName,omitempty"`
 }
 
 func itemListEntryFromMedia(item media.Item) itemListEntry {
 	return itemListEntry{
-		ID:            item.ID,
-		LibraryID:     item.LibraryID,
-		SourcePath:    item.SourcePath,
-		Kind:          item.Kind,
-		Path:          item.Path,
-		Dir:           item.Dir,
-		FileName:      item.FileName,
-		TitleGuess:    item.TitleGuess,
-		YearGuess:     item.YearGuess,
-		Original:      item.Original,
-		Overview:      item.Overview,
-		Runtime:       item.Runtime,
-		Rating:        item.Rating,
-		ShowRating:    item.ShowRating,
-		Genres:        limitStrings(item.Genres, 24),
-		Actors:        limitStrings(item.Actors, 40),
-		Premiered:     item.Premiered,
-		DateAdded:     item.DateAdded,
-		FileSize:      item.FileSize,
-		FileSizeBytes: item.FileSizeBytes,
-		VideoFormat:   item.VideoFormat,
-		AudioCodec:    item.AudioCodec,
-		IMDBID:        item.IMDBID,
-		ShowGuess:     item.ShowGuess,
-		Season:        item.Season,
-		Episode:       item.Episode,
-		Episodes:      limitInts(item.Episodes, 12),
-		AirDate:       item.AirDate,
-		MediaType:     item.MediaType,
-		HasNFO:        item.HasNFO,
-		HasPoster:     item.HasPoster,
-		HasFanart:     item.HasFanart,
-		HasSubtitle:   item.HasSubtitle,
-		MatchedID:     item.MatchedID,
-		MatchedName:   item.MatchedName,
+		ID:                   item.ID,
+		LibraryID:            item.LibraryID,
+		SourcePath:           item.SourcePath,
+		Kind:                 item.Kind,
+		Path:                 item.Path,
+		Dir:                  item.Dir,
+		FileName:             item.FileName,
+		TitleGuess:           item.TitleGuess,
+		YearGuess:            item.YearGuess,
+		Original:             item.Original,
+		Overview:             item.Overview,
+		Runtime:              item.Runtime,
+		Rating:               item.Rating,
+		ShowRating:           item.ShowRating,
+		Genres:               limitStrings(item.Genres, 24),
+		Actors:               limitStrings(item.Actors, 40),
+		Premiered:            item.Premiered,
+		DateAdded:            item.DateAdded,
+		FileSize:             item.FileSize,
+		FileSizeBytes:        item.FileSizeBytes,
+		VideoFormat:          item.VideoFormat,
+		AudioCodec:           item.AudioCodec,
+		MediaDurationSeconds: mediaDurationSeconds(item),
+		IMDBID:               item.IMDBID,
+		ShowGuess:            item.ShowGuess,
+		Season:               item.Season,
+		Episode:              item.Episode,
+		Episodes:             limitInts(item.Episodes, 12),
+		AirDate:              item.AirDate,
+		MediaType:            item.MediaType,
+		HasNFO:               item.HasNFO,
+		HasPoster:            item.HasPoster,
+		HasFanart:            item.HasFanart,
+		HasSubtitle:          item.HasSubtitle,
+		MatchedID:            item.MatchedID,
+		MatchedName:          item.MatchedName,
 	}
+}
+
+// mediaDurationSeconds keeps the list response compact while retaining the
+// actual duration from MediaInfo. The stream fallback also covers items saved
+// before the scalar duration field was introduced.
+func mediaDurationSeconds(item media.Item) int {
+	if item.MediaDurationSeconds > 0 {
+		return item.MediaDurationSeconds
+	}
+	return videoDurationSeconds(item.VideoStreams)
+}
+
+func videoDurationSeconds(streams []media.VideoStream) int {
+	longest := 0
+	for _, stream := range streams {
+		if stream.DurationSeconds > longest {
+			longest = stream.DurationSeconds
+		}
+	}
+	return longest
 }
 
 func limitStrings(values []string, limit int) []string {
@@ -891,7 +913,7 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 			delete(s.items, oldID)
 		}
 		for _, changed := range updated {
-			s.items[changed.ID] = changed
+			s.items[changed.ID] = media.CompactCachedItem(changed)
 		}
 		s.mu.Unlock()
 		if err := s.store.SaveItems(updated); err != nil {
@@ -1009,7 +1031,7 @@ func (s *Server) handleScrape(w http.ResponseWriter, r *http.Request) {
 	if oldID != "" {
 		delete(s.items, oldID)
 	}
-	s.items[item.ID] = item
+	s.items[item.ID] = media.CompactCachedItem(item)
 	s.mu.Unlock()
 	if err := s.store.SaveItem(item); err != nil {
 		http.Error(w, err.Error(), 500)
@@ -1107,7 +1129,7 @@ func (s *Server) handleRenameApply(w http.ResponseWriter, r *http.Request) {
 			changed := media.RefreshItemPath(item, preview.TargetFile)
 			oldID = id
 			delete(s.items, id)
-			s.items[changed.ID] = changed
+			s.items[changed.ID] = media.CompactCachedItem(changed)
 			updated = &changed
 			break
 		}
@@ -1212,7 +1234,7 @@ func (s *Server) handleLocalRename(w http.ResponseWriter, r *http.Request) {
 		delete(s.items, oldID)
 	}
 	for _, item := range updated {
-		s.items[item.ID] = item
+		s.items[item.ID] = media.CompactCachedItem(item)
 	}
 	s.mu.Unlock()
 

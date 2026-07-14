@@ -93,48 +93,69 @@ type Library struct {
 }
 
 type Item struct {
-	ID               string           `json:"id"`
-	LibraryID        string           `json:"libraryId"`
-	SourcePath       string           `json:"sourcePath"`
-	Kind             string           `json:"kind"`
-	Path             string           `json:"path"`
-	Dir              string           `json:"dir"`
-	FileName         string           `json:"fileName"`
-	TitleGuess       string           `json:"titleGuess"`
-	YearGuess        string           `json:"yearGuess,omitempty"`
-	Original         string           `json:"originalTitle,omitempty"`
-	Overview         string           `json:"overview,omitempty"`
-	Runtime          int              `json:"runtime,omitempty"`
-	Rating           float64          `json:"rating,omitempty"`
-	ShowRating       float64          `json:"showRating,omitempty"`
-	Genres           []string         `json:"genres,omitempty"`
-	Actors           []string         `json:"actors,omitempty"`
-	Premiered        string           `json:"premiered,omitempty"`
-	DateAdded        string           `json:"dateAdded,omitempty"`
-	ModTimeUnix      int64            `json:"modTimeUnix,omitempty"`
-	DirModTimeUnix   int64            `json:"dirModTimeUnix,omitempty"`
-	NFOModTimeUnix   int64            `json:"nfoModTimeUnix,omitempty"`
-	FileSize         string           `json:"fileSize,omitempty"`
-	FileSizeBytes    int64            `json:"fileSizeBytes,omitempty"`
-	VideoFormat      string           `json:"videoFormat,omitempty"`
-	AudioCodec       string           `json:"audioCodec,omitempty"`
-	VideoStreams     []VideoStream    `json:"videoStreams,omitempty"`
-	AudioStreams     []AudioStream    `json:"audioStreams,omitempty"`
-	SubtitleStreams  []SubtitleStream `json:"subtitleStreams,omitempty"`
-	MediaInfoScanned bool             `json:"mediaInfoScanned,omitempty"`
-	IMDBID           string           `json:"imdbId,omitempty"`
-	ShowGuess        string           `json:"showGuess,omitempty"`
-	Season           int              `json:"season,omitempty"`
-	Episode          int              `json:"episode,omitempty"`
-	Episodes         []int            `json:"episodes,omitempty"`
-	AirDate          string           `json:"airDate,omitempty"`
-	MediaType        string           `json:"mediaType"`
-	HasNFO           bool             `json:"hasNfo"`
-	HasPoster        bool             `json:"hasPoster"`
-	HasFanart        bool             `json:"hasFanart"`
-	HasSubtitle      bool             `json:"hasSubtitle"`
-	MatchedID        int              `json:"matchedId,omitempty"`
-	MatchedName      string           `json:"matchedName,omitempty"`
+	ID             string   `json:"id"`
+	LibraryID      string   `json:"libraryId"`
+	SourcePath     string   `json:"sourcePath"`
+	Kind           string   `json:"kind"`
+	Path           string   `json:"path"`
+	Dir            string   `json:"dir"`
+	FileName       string   `json:"fileName"`
+	TitleGuess     string   `json:"titleGuess"`
+	YearGuess      string   `json:"yearGuess,omitempty"`
+	Original       string   `json:"originalTitle,omitempty"`
+	Overview       string   `json:"overview,omitempty"`
+	Runtime        int      `json:"runtime,omitempty"`
+	Rating         float64  `json:"rating,omitempty"`
+	ShowRating     float64  `json:"showRating,omitempty"`
+	Genres         []string `json:"genres,omitempty"`
+	Actors         []string `json:"actors,omitempty"`
+	Premiered      string   `json:"premiered,omitempty"`
+	DateAdded      string   `json:"dateAdded,omitempty"`
+	ModTimeUnix    int64    `json:"modTimeUnix,omitempty"`
+	DirModTimeUnix int64    `json:"dirModTimeUnix,omitempty"`
+	NFOModTimeUnix int64    `json:"nfoModTimeUnix,omitempty"`
+	FileSize       string   `json:"fileSize,omitempty"`
+	FileSizeBytes  int64    `json:"fileSizeBytes,omitempty"`
+	VideoFormat    string   `json:"videoFormat,omitempty"`
+	AudioCodec     string   `json:"audioCodec,omitempty"`
+	// MediaDurationSeconds is the duration read from the local media file or
+	// its NFO stream details. Keep it separate from Runtime, which is the
+	// metadata-provider runtime and can differ from the actual file length.
+	MediaDurationSeconds int              `json:"mediaDurationSeconds,omitempty"`
+	VideoStreams         []VideoStream    `json:"videoStreams,omitempty"`
+	AudioStreams         []AudioStream    `json:"audioStreams,omitempty"`
+	SubtitleStreams      []SubtitleStream `json:"subtitleStreams,omitempty"`
+	MediaInfoScanned     bool             `json:"mediaInfoScanned,omitempty"`
+	IMDBID               string           `json:"imdbId,omitempty"`
+	ShowGuess            string           `json:"showGuess,omitempty"`
+	Season               int              `json:"season,omitempty"`
+	Episode              int              `json:"episode,omitempty"`
+	Episodes             []int            `json:"episodes,omitempty"`
+	AirDate              string           `json:"airDate,omitempty"`
+	MediaType            string           `json:"mediaType"`
+	HasNFO               bool             `json:"hasNfo"`
+	HasPoster            bool             `json:"hasPoster"`
+	HasFanart            bool             `json:"hasFanart"`
+	HasSubtitle          bool             `json:"hasSubtitle"`
+	MatchedID            int              `json:"matchedId,omitempty"`
+	MatchedName          string           `json:"matchedName,omitempty"`
+}
+
+// CompactCachedItem removes stream-level details that are expensive to keep
+// for every library entry. The list and detail views only need the normalized
+// summary fields above; NFO writing probes stream details on demand.
+func CompactCachedItem(item Item) Item {
+	if item.MediaDurationSeconds == 0 {
+		item.MediaDurationSeconds = videoDurationSeconds(item.VideoStreams)
+	}
+	item.VideoStreams = nil
+	item.AudioStreams = nil
+	item.SubtitleStreams = nil
+	return item
+}
+
+func HasDetailedMediaInfo(item Item) bool {
+	return len(item.VideoStreams) > 0 || len(item.AudioStreams) > 0 || len(item.SubtitleStreams) > 0
 }
 
 type RenamePreview struct {
@@ -237,68 +258,70 @@ type scanJob struct {
 // It deliberately excludes large metadata fields such as plot, actors and
 // stream slices so scans do not duplicate the full in-memory media cache.
 type ScanExistingItem struct {
-	ID               string
-	LibraryID        string
-	SourcePath       string
-	Kind             string
-	Path             string
-	Dir              string
-	FileName         string
-	TitleGuess       string
-	YearGuess        string
-	DateAdded        string
-	ModTimeUnix      int64
-	DirModTimeUnix   int64
-	NFOModTimeUnix   int64
-	FileSize         string
-	FileSizeBytes    int64
-	VideoFormat      string
-	AudioCodec       string
-	MediaInfoScanned bool
-	HasNFO           bool
-	HasPoster        bool
-	HasFanart        bool
-	HasSubtitle      bool
-	HasNFOSummary    bool
-	MediaType        string
-	ShowGuess        string
-	Season           int
-	Episode          int
-	Episodes         []int
-	AirDate          string
+	ID                   string
+	LibraryID            string
+	SourcePath           string
+	Kind                 string
+	Path                 string
+	Dir                  string
+	FileName             string
+	TitleGuess           string
+	YearGuess            string
+	DateAdded            string
+	ModTimeUnix          int64
+	DirModTimeUnix       int64
+	NFOModTimeUnix       int64
+	FileSize             string
+	FileSizeBytes        int64
+	VideoFormat          string
+	AudioCodec           string
+	MediaDurationSeconds int
+	MediaInfoScanned     bool
+	HasNFO               bool
+	HasPoster            bool
+	HasFanart            bool
+	HasSubtitle          bool
+	HasNFOSummary        bool
+	MediaType            string
+	ShowGuess            string
+	Season               int
+	Episode              int
+	Episodes             []int
+	AirDate              string
 }
 
 func NewScanExistingItem(item Item) ScanExistingItem {
 	return ScanExistingItem{
-		ID:               item.ID,
-		LibraryID:        item.LibraryID,
-		SourcePath:       item.SourcePath,
-		Kind:             item.Kind,
-		Path:             item.Path,
-		Dir:              item.Dir,
-		FileName:         item.FileName,
-		TitleGuess:       item.TitleGuess,
-		YearGuess:        item.YearGuess,
-		DateAdded:        item.DateAdded,
-		ModTimeUnix:      item.ModTimeUnix,
-		DirModTimeUnix:   item.DirModTimeUnix,
-		NFOModTimeUnix:   item.NFOModTimeUnix,
-		FileSize:         item.FileSize,
-		FileSizeBytes:    item.FileSizeBytes,
-		VideoFormat:      item.VideoFormat,
-		AudioCodec:       item.AudioCodec,
-		MediaInfoScanned: item.MediaInfoScanned,
-		HasNFO:           item.HasNFO,
-		HasPoster:        item.HasPoster,
-		HasFanart:        item.HasFanart,
-		HasSubtitle:      item.HasSubtitle,
-		HasNFOSummary:    !nfoSummaryMissing(item),
-		MediaType:        item.MediaType,
-		ShowGuess:        item.ShowGuess,
-		Season:           item.Season,
-		Episode:          item.Episode,
-		Episodes:         item.Episodes,
-		AirDate:          item.AirDate,
+		ID:                   item.ID,
+		LibraryID:            item.LibraryID,
+		SourcePath:           item.SourcePath,
+		Kind:                 item.Kind,
+		Path:                 item.Path,
+		Dir:                  item.Dir,
+		FileName:             item.FileName,
+		TitleGuess:           item.TitleGuess,
+		YearGuess:            item.YearGuess,
+		DateAdded:            item.DateAdded,
+		ModTimeUnix:          item.ModTimeUnix,
+		DirModTimeUnix:       item.DirModTimeUnix,
+		NFOModTimeUnix:       item.NFOModTimeUnix,
+		FileSize:             item.FileSize,
+		FileSizeBytes:        item.FileSizeBytes,
+		VideoFormat:          item.VideoFormat,
+		AudioCodec:           item.AudioCodec,
+		MediaDurationSeconds: item.MediaDurationSeconds,
+		MediaInfoScanned:     item.MediaInfoScanned,
+		HasNFO:               item.HasNFO,
+		HasPoster:            item.HasPoster,
+		HasFanart:            item.HasFanart,
+		HasSubtitle:          item.HasSubtitle,
+		HasNFOSummary:        !nfoSummaryMissing(item),
+		MediaType:            item.MediaType,
+		ShowGuess:            item.ShowGuess,
+		Season:               item.Season,
+		Episode:              item.Episode,
+		Episodes:             item.Episodes,
+		AirDate:              item.AirDate,
 	}
 }
 
@@ -315,34 +338,35 @@ func BuildScanExistingIndex(items map[string]Item) map[string]ScanExistingItem {
 
 func (item ScanExistingItem) ToItem() Item {
 	return Item{
-		ID:               item.ID,
-		LibraryID:        item.LibraryID,
-		SourcePath:       item.SourcePath,
-		Kind:             item.Kind,
-		Path:             item.Path,
-		Dir:              item.Dir,
-		FileName:         item.FileName,
-		TitleGuess:       item.TitleGuess,
-		YearGuess:        item.YearGuess,
-		DateAdded:        item.DateAdded,
-		ModTimeUnix:      item.ModTimeUnix,
-		DirModTimeUnix:   item.DirModTimeUnix,
-		NFOModTimeUnix:   item.NFOModTimeUnix,
-		FileSize:         item.FileSize,
-		FileSizeBytes:    item.FileSizeBytes,
-		VideoFormat:      item.VideoFormat,
-		AudioCodec:       item.AudioCodec,
-		MediaInfoScanned: item.MediaInfoScanned,
-		HasNFO:           item.HasNFO,
-		HasPoster:        item.HasPoster,
-		HasFanart:        item.HasFanart,
-		HasSubtitle:      item.HasSubtitle,
-		MediaType:        item.MediaType,
-		ShowGuess:        item.ShowGuess,
-		Season:           item.Season,
-		Episode:          item.Episode,
-		Episodes:         item.Episodes,
-		AirDate:          item.AirDate,
+		ID:                   item.ID,
+		LibraryID:            item.LibraryID,
+		SourcePath:           item.SourcePath,
+		Kind:                 item.Kind,
+		Path:                 item.Path,
+		Dir:                  item.Dir,
+		FileName:             item.FileName,
+		TitleGuess:           item.TitleGuess,
+		YearGuess:            item.YearGuess,
+		DateAdded:            item.DateAdded,
+		ModTimeUnix:          item.ModTimeUnix,
+		DirModTimeUnix:       item.DirModTimeUnix,
+		NFOModTimeUnix:       item.NFOModTimeUnix,
+		FileSize:             item.FileSize,
+		FileSizeBytes:        item.FileSizeBytes,
+		VideoFormat:          item.VideoFormat,
+		AudioCodec:           item.AudioCodec,
+		MediaDurationSeconds: item.MediaDurationSeconds,
+		MediaInfoScanned:     item.MediaInfoScanned,
+		HasNFO:               item.HasNFO,
+		HasPoster:            item.HasPoster,
+		HasFanart:            item.HasFanart,
+		HasSubtitle:          item.HasSubtitle,
+		MediaType:            item.MediaType,
+		ShowGuess:            item.ShowGuess,
+		Season:               item.Season,
+		Episode:              item.Episode,
+		Episodes:             item.Episodes,
+		AirDate:              item.AirDate,
 	}
 }
 
@@ -462,7 +486,7 @@ func scanLibraryWithOptions(library Library, options ScanOptions, progress func(
 					return filepath.SkipDir
 				}
 				if options.SkipUnchangedDirs && path != root {
-					if cachedItems, ok := unchangedCachedDir(path, info, dirCache, options.ProbeMediaInfo); ok {
+					if cachedItems, ok := unchangedCachedDir(path, info, dirCache, existingIndex, options.ProbeMediaInfo); ok {
 						for _, item := range cachedItems {
 							collect(item)
 						}
@@ -524,7 +548,7 @@ func scanLibraryWithOptions(library Library, options ScanOptions, progress func(
 }
 
 type cachedDir struct {
-	items       []ScanExistingItem
+	itemIDs     []string
 	modTimeUnix int64
 	hasChildDir bool
 	incomplete  bool
@@ -546,7 +570,7 @@ func buildExistingDirCache(existing map[string]ScanExistingItem, root string) ma
 			cache[dir] = entry
 			continue
 		}
-		entry.items = append(entry.items, item)
+		entry.itemIDs = append(entry.itemIDs, item.ID)
 		if entry.modTimeUnix == 0 {
 			entry.modTimeUnix = item.DirModTimeUnix
 		} else if entry.modTimeUnix != item.DirModTimeUnix {
@@ -567,21 +591,29 @@ func buildExistingDirCache(existing map[string]ScanExistingItem, root string) ma
 			parent = filepath.Dir(parent)
 		}
 	}
+	for dir, entry := range cache {
+		sort.Slice(entry.itemIDs, func(i, j int) bool {
+			return existing[entry.itemIDs[i]].Path < existing[entry.itemIDs[j]].Path
+		})
+		cache[dir] = entry
+	}
 	return cache
 }
 
-func unchangedCachedDir(path string, info os.FileInfo, cache map[string]cachedDir, requireMediaInfo bool) ([]Item, bool) {
+func unchangedCachedDir(path string, info os.FileInfo, cache map[string]cachedDir, existing map[string]ScanExistingItem, requireMediaInfo bool) ([]Item, bool) {
 	entry, ok := cache[filepath.Clean(path)]
-	if !ok || entry.incomplete || entry.hasChildDir || len(entry.items) == 0 {
+	if !ok || entry.incomplete || entry.hasChildDir || len(entry.itemIDs) == 0 {
 		return nil, false
 	}
 	if info == nil || info.ModTime().UnixNano() != entry.modTimeUnix {
 		return nil, false
 	}
-	items := append([]ScanExistingItem(nil), entry.items...)
-	sort.Slice(items, func(i, j int) bool { return items[i].Path < items[j].Path })
-	result := make([]Item, 0, len(items))
-	for _, item := range items {
+	result := make([]Item, 0, len(entry.itemIDs))
+	for _, id := range entry.itemIDs {
+		item, ok := existing[id]
+		if !ok {
+			return nil, false
+		}
 		fileInfo, err := os.Stat(item.Path)
 		if err != nil || !scanExistingUnchanged(item, item.Path, fileInfo, requireMediaInfo) {
 			return nil, false
@@ -709,6 +741,7 @@ func newItem(library Library, sourcePath string, path string, fileName string, i
 				item.AudioCodec = probed.AudioCodec
 			}
 			item.VideoStreams = probed.VideoStreams
+			item.MediaDurationSeconds = videoDurationSeconds(probed.VideoStreams)
 			item.AudioStreams = probed.AudioStreams
 			item.SubtitleStreams = probed.SubtitleStreams
 			item.MediaInfoScanned = true
@@ -1284,6 +1317,7 @@ func applyNFOSummary(item *Item) {
 		item.IMDBID = summary.IMDBID
 		if len(summary.VideoStreams) > 0 {
 			item.VideoStreams = videoStreamsFromNFO(summary.VideoStreams)
+			item.MediaDurationSeconds = videoDurationSeconds(item.VideoStreams)
 			if item.VideoFormat == "" {
 				item.VideoFormat = videoFormatFromHeight(item.VideoStreams[0].Height)
 			}
@@ -1315,6 +1349,16 @@ func videoStreamsFromNFO(values []nfo.VideoStream) []VideoStream {
 		})
 	}
 	return streams
+}
+
+func videoDurationSeconds(streams []VideoStream) int {
+	longest := 0
+	for _, stream := range streams {
+		if stream.DurationSeconds > longest {
+			longest = stream.DurationSeconds
+		}
+	}
+	return longest
 }
 
 func audioStreamsFromNFO(values []nfo.AudioStream) []AudioStream {

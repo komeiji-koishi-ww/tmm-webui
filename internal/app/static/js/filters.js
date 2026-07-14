@@ -867,6 +867,16 @@ export const filtersMixin = {
       const rating = Number(value || 0);
       return rating > 0 ? rating.toFixed(1) : "-";
     },
+    formatMediaDuration(value) {
+      const total = Math.max(0, Math.floor(Number(value) || 0));
+      if (!total) return "-";
+      const hours = Math.floor(total / 3600);
+      const minutes = Math.floor((total % 3600) / 60);
+      const seconds = total % 60;
+      return [hours, minutes, seconds]
+        .map((part) => String(part).padStart(2, "0"))
+        .join(":");
+    },
     tvEpisodeRating(item) {
       if (!item || item.kind !== "tvshow") return Number(item?.rating || 0);
       const rating = Number(item.rating || 0);

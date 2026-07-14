@@ -315,6 +315,7 @@ export const libraryMixin = {
         fileSizeBytes: item.fileSizeBytes,
         videoFormat: item.videoFormat,
         audioCodec: item.audioCodec,
+        mediaDurationSeconds: item.mediaDurationSeconds,
         imdbId: item.imdbId,
         showGuess: item.showGuess,
         season: item.season,

@@ -95,6 +95,7 @@ func (s *Server) runScanTask(taskID string, library media.Library) {
 			if existing, ok := s.items[item.ID]; ok {
 				item = media.MergeScannedItem(existing, item)
 			}
+			item = media.CompactCachedItem(item)
 			s.items[item.ID] = item
 			if persistErr == nil {
 				pending = append(pending, item)
@@ -149,6 +150,12 @@ func (s *Server) runScanTask(taskID string, library media.Library) {
 	task.ResultCount = len(currentIDSet)
 	task.FoundItems = len(currentIDSet)
 	_ = s.store.SaveTask(task.toRecord())
+	go s.compactStoreAfterScan()
+}
+
+func (s *Server) compactStoreAfterScan() {
+	_, _ = s.store.CompactIfNeeded()
+	releaseScanMemory()
 }
 
 func releaseScanMemory() {

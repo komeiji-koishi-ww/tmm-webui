@@ -55,6 +55,16 @@ func writeTVEpisodeNFO(path string, show tmdb.TVShow, episode tmdb.TVEpisode, it
 }
 
 func nfoMediaFileInfo(item media.Item) nfo.EpisodeFileInfo {
+	if !media.HasDetailedMediaInfo(item) && item.Path != "" {
+		if stat, err := os.Stat(item.Path); err == nil && !stat.IsDir() {
+			probed := media.ProbeMediaInfo(item.Path, stat)
+			if probed.Scanned {
+				item.VideoStreams = probed.VideoStreams
+				item.AudioStreams = probed.AudioStreams
+				item.SubtitleStreams = probed.SubtitleStreams
+			}
+		}
+	}
 	info := nfo.EpisodeFileInfo{
 		FileName:  item.FileName,
 		DateAdded: nfoDateTime(item.DateAdded),

@@ -28,14 +28,15 @@ type Config struct {
 }
 
 type Server struct {
-	config    Config
-	mu        sync.Mutex
-	libraries []media.Library
-	items     map[string]media.Item
-	tasks     map[string]*Task
-	settings  AppSettings
-	store     *store.Store
-	tmdb      tmdb.Client
+	config               Config
+	mu                   sync.Mutex
+	libraries            []media.Library
+	items                map[string]media.Item
+	tasks                map[string]*Task
+	settings             AppSettings
+	store                *store.Store
+	tmdb                 tmdb.Client
+	needsStoreCompaction bool
 }
 
 func NewServer(config Config) (*Server, error) {
@@ -75,5 +76,8 @@ func NewServer(config Config) (*Server, error) {
 	_ = server.loadTasks()
 	_ = server.migrateJSON()
 	go server.refreshCachedItems()
+	if server.needsStoreCompaction {
+		go server.compactStoredItems()
+	}
 	return server, nil
 }

@@ -126,6 +126,7 @@ export const summaryMixin = {
         fileSizeBytes: fallback.fileSizeBytes || 0,
         videoFormat: fallback.videoFormat || "",
         audioCodec: fallback.audioCodec || "",
+        mediaDurationSeconds: Number(fallback.mediaDurationSeconds || 0),
         hasNfo: !!fallback.hasNfo,
         hasPoster: !!fallback.hasPoster,
         hasFanart: !!fallback.hasFanart,

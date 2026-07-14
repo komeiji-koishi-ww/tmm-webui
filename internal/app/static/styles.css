@@ -625,8 +625,9 @@ select {
 
 .poster-frame {
   display: grid;
-  width: 148px;
-  height: 222px;
+  width: min(210px, 52%);
+  height: auto;
+  aspect-ratio: 2 / 3;
   flex: 0 0 auto;
   place-items: center;
   overflow: hidden;
@@ -694,29 +695,29 @@ select {
 }
 
 .fanart-frame {
-  display: grid;
+  display: block;
   width: 100%;
-  min-height: 130px;
+  max-width: 520px;
+  align-self: flex-start;
   flex: 0 0 auto;
-  place-items: center;
   overflow: hidden;
   border-radius: var(--app-radius);
-  background: #101928;
   color: #789;
   font-size: 12px;
 }
 
 .fanart-frame img {
-  grid-area: 1 / 1;
   display: block;
   width: 100%;
   height: auto;
-  max-height: 220px;
-  object-fit: contain;
+  max-height: none;
 }
 
 .fanart-frame span {
-  grid-area: 1 / 1;
+  display: grid;
+  min-height: 130px;
+  place-items: center;
+  background: #101928;
 }
 
 .folder-path {

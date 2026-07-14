@@ -7,15 +7,15 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
     />
     <title>TMM WebUI</title>
-    <script src="/vue.global.prod.js?v=mobile-ui-11"></script>
+    <script src="/vue.global.prod.js?v=mobile-ui-16"></script>
     <link
       rel="stylesheet"
-      href="/vendor/element-plus/index.css?v=mobile-ui-11"
+      href="/vendor/element-plus/index.css?v=mobile-ui-16"
     />
-    <script src="/vendor/element-plus/index.full.min.js?v=mobile-ui-11"></script>
-    <script src="/vendor/element-plus-icons/index.iife.min.js?v=mobile-ui-11"></script>
-    <link rel="stylesheet" href="/styles.css?v=mobile-ui-11" />
-    <link rel="stylesheet" href="/css/mobile.css?v=mobile-ui-11" />
+    <script src="/vendor/element-plus/index.full.min.js?v=mobile-ui-16"></script>
+    <script src="/vendor/element-plus-icons/index.iife.min.js?v=mobile-ui-16"></script>
+    <link rel="stylesheet" href="/styles.css?v=mobile-ui-16" />
+    <link rel="stylesheet" href="/css/mobile.css?v=mobile-ui-16" />
   </head>
   <body>
     <div id="app" v-cloak>
@@ -113,6 +113,7 @@
                 <p>
                   {{ selectedSummary.videoFormat || '-' }} · {{
                   selectedSummary.audioCodec || '-' }} · {{
+                  formatMediaDuration(selectedSummary.mediaDurationSeconds) }} · {{
                   selectedSummary.fileSize || '-' }}
                 </p>
               </section>
@@ -932,6 +933,12 @@
                   >
                   <el-descriptions-item
                     v-if="selectedSummary.showMediaFields"
+                    label="时长"
+                    >{{ formatMediaDuration(selectedSummary.mediaDurationSeconds)
+                    }}</el-descriptions-item
+                  >
+                  <el-descriptions-item
+                    v-if="selectedSummary.showMediaFields"
                     label="音频"
                     >{{ selectedSummary.audioCodec || '-'
                     }}</el-descriptions-item
@@ -957,7 +964,6 @@
                 </section>
 
                 <div class="fanart-frame">
-                  <span>Fanart</span>
                   <img
                     v-if="selectedSummary.fanart"
                     :key="selectedSummary.fanart"
@@ -966,6 +972,7 @@
                     @load="showLoadedImage"
                     @error="hideBrokenImage"
                   />
+                  <span v-else>Fanart</span>
                 </div>
                 <div class="folder-path">
                   <strong>文件夹</strong>
@@ -1882,6 +1889,6 @@
         </el-dialog>
       </el-config-provider>
     </div>
-    <script type="module" src="/app.js?v=mobile-ui-11"></script>
+    <script type="module" src="/app.js?v=mobile-ui-16"></script>
   </body>
 </html>

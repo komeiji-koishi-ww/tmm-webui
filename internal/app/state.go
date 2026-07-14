@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -41,6 +40,10 @@ func (s *Server) loadItems() error {
 		if item.DateAdded == "" {
 			item.DateAdded = time.Now().UTC().Format(time.RFC3339)
 		}
+		if media.HasDetailedMediaInfo(item) {
+			s.needsStoreCompaction = true
+			item = media.CompactCachedItem(item)
+		}
 		s.items[item.ID] = item
 	}
 	return nil
@@ -48,9 +51,9 @@ func (s *Server) loadItems() error {
 
 func (s *Server) refreshCachedItems() {
 	s.mu.Lock()
-	items := make([]media.Item, 0, len(s.items))
+	items := make([]media.ScanExistingItem, 0, len(s.items))
 	for _, item := range s.items {
-		items = append(items, item)
+		items = append(items, media.NewScanExistingItem(item))
 	}
 	s.mu.Unlock()
 
@@ -63,7 +66,8 @@ func (s *Server) refreshCachedItems() {
 		batch = batch[:0]
 	}
 
-	for _, item := range items {
+	for _, cached := range items {
+		item := cached.ToItem()
 		info, err := os.Stat(item.Path)
 		if err != nil {
 			continue
@@ -75,8 +79,14 @@ func (s *Server) refreshCachedItems() {
 			Type:  item.Kind,
 		}
 		local := media.NewItemFromFileInfo(library, item.SourcePath, item.Path, info)
-		merged := media.MergeScannedItem(item, local)
-		if !itemChanged(item, merged) {
+		s.mu.Lock()
+		existing, ok := s.items[item.ID]
+		s.mu.Unlock()
+		if !ok {
+			continue
+		}
+		merged := media.CompactCachedItem(media.MergeScannedItem(existing, local))
+		if !itemChanged(existing, merged) {
 			continue
 		}
 		s.mu.Lock()
@@ -106,9 +116,7 @@ func itemChanged(a media.Item, b media.Item) bool {
 		a.FileSizeBytes != b.FileSizeBytes ||
 		a.VideoFormat != b.VideoFormat ||
 		a.AudioCodec != b.AudioCodec ||
-		!reflect.DeepEqual(a.VideoStreams, b.VideoStreams) ||
-		!reflect.DeepEqual(a.AudioStreams, b.AudioStreams) ||
-		!reflect.DeepEqual(a.SubtitleStreams, b.SubtitleStreams) ||
+		a.MediaDurationSeconds != b.MediaDurationSeconds ||
 		a.MediaInfoScanned != b.MediaInfoScanned ||
 		strings.Join(a.Genres, "\x00") != strings.Join(b.Genres, "\x00") ||
 		strings.Join(a.Actors, "\x00") != strings.Join(b.Actors, "\x00") ||
@@ -120,6 +128,38 @@ func itemChanged(a media.Item, b media.Item) bool {
 		a.HasPoster != b.HasPoster ||
 		a.HasFanart != b.HasFanart ||
 		a.HasSubtitle != b.HasSubtitle
+}
+
+// compactStoredItems migrates older full stream payloads in bounded batches.
+// The runtime cache was already compacted during loadItems, so this only
+// reduces bbolt's persisted values and its memory-mapped file footprint.
+func (s *Server) compactStoredItems() {
+	s.mu.Lock()
+	ids := make([]string, 0, len(s.items))
+	for id := range s.items {
+		ids = append(ids, id)
+	}
+	s.mu.Unlock()
+
+	for start := 0; start < len(ids); start += scanPersistBatchSize {
+		end := start + scanPersistBatchSize
+		if end > len(ids) {
+			end = len(ids)
+		}
+		batch := make([]media.Item, 0, end-start)
+		s.mu.Lock()
+		for _, id := range ids[start:end] {
+			if item, ok := s.items[id]; ok {
+				batch = append(batch, item)
+			}
+		}
+		s.mu.Unlock()
+		if err := s.store.SaveItems(batch); err != nil {
+			return
+		}
+	}
+	_, _ = s.store.CompactIfNeeded()
+	releaseScanMemory()
 }
 
 func (s *Server) loadTasks() error {
@@ -161,7 +201,7 @@ func (s *Server) migrateJSON() error {
 				return err
 			}
 			for _, item := range items {
-				s.items[item.ID] = item
+				s.items[item.ID] = media.CompactCachedItem(item)
 			}
 		}
 	}
