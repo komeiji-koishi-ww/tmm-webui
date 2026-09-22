@@ -3,11 +3,11 @@ import { filtersMixin } from "./js/filters.js";
 import { layoutMixin } from "./js/layout.js";
 import { libraryMixin } from "./js/library.js";
 import { mobileMixin } from "./js/mobile.js";
-import { renamerMixin } from "./js/renamer.js?v=mobile-ui-20";
+import { renamerMixin } from "./js/renamer.js?v=mobile-ui-22";
 import { createInitialState } from "./js/state.js";
 import { settingsMixin } from "./js/settings.js";
 import { summaryMixin } from "./js/summary.js";
-import { tvMixin } from "./js/tv.js?v=mobile-ui-18";
+import { tvMixin } from "./js/tv.js?v=mobile-ui-22";
 
 const { createApp } = Vue;
 const ElementIcons = window.ElementPlusIconsVue || {};

@@ -496,13 +496,22 @@ export const tvMixin = {
       if (item.kind !== "tvshow") return item.yearGuess || "-";
       const matchedName = (item.matchedName || "").trim();
       const showName = (item.showGuess || "").trim();
-      if (matchedName && matchedName !== showName) return matchedName;
+      const episodeCode = this.itemEpisodeCode(item);
+      if (matchedName && matchedName !== showName) {
+        return episodeCode ? `${episodeCode} · ${matchedName}` : matchedName;
+      }
+      if (episodeCode) return episodeCode;
+      if (matchedName) return matchedName;
+      return "-";
+    },
+    itemEpisodeCode(item) {
+      if (!item || item.kind !== "tvshow" || !item.season) return "";
       if (item.season && item.episodes && item.episodes.length) {
         return `S${String(item.season).padStart(2, "0")}E${item.episodes.map((episode) => String(episode).padStart(2, "0")).join(",")}`;
       }
       if (item.season && item.episode)
         return `S${String(item.season).padStart(2, "0")}E${String(item.episode).padStart(2, "0")}`;
-      return "-";
+      return "";
     },
     itemStatusText(item) {
       const values = [];
