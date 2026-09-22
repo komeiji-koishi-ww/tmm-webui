@@ -409,7 +409,12 @@ export const renamerMixin = {
             kind: this.selectedItem.kind === "tvshow" ? "episode" : "movie",
             payload: this.selectedItem,
           };
-        this.status = `已重命名 ${updatedItems.length} 个文件`;
+        // Reload the persisted library after a batch rename so the TV tree is
+        // rebuilt from the new filenames instead of retaining stale grouping.
+        if (this.selectedLibrary) {
+          await this.loadItems(this.selectedLibrary, true);
+        }
+        this.status = `已重命名并刷新 ${updatedItems.length} 个文件`;
         this.closeLocalRename();
       } catch (error) {
         this.localRename.error = error.message;

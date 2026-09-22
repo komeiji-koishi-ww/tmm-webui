@@ -72,6 +72,7 @@ func TestGuessSeasonEpisodeTmmPatterns(t *testing.T) {
 		{name: "/shows/Dark/Dark.1x02.mkv", season: 1, episodes: []int{2}},
 		{name: "/shows/Dark/Season 01/102.mkv", season: 1, episodes: []int{2}},
 		{name: "/shows/Dark/Season 01/02.mkv", season: 1, episodes: []int{2}},
+		{name: "/shows/Dark/Season 10/Dark.S01E10.mkv", season: 1, episodes: []int{10}},
 		{name: "/shows/Daily/Daily.2024.08.13.mp4", season: 2024, airDate: "2024-08-13"},
 	}
 	for _, tt := range tests {
@@ -93,6 +94,37 @@ func TestGuessSeasonEpisodeTmmPatterns(t *testing.T) {
 				t.Fatalf("%s episodes = %#v", tt.name, match.Episodes)
 			}
 		}
+	}
+}
+
+func TestRefreshItemPathReparsesTVEpisode(t *testing.T) {
+	root := t.TempDir()
+	showDir := filepath.Join(root, "Example Show", "Season 01")
+	if err := os.MkdirAll(showDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	oldPath := filepath.Join(showDir, "01.mp4")
+	newPath := filepath.Join(showDir, "Example.Show.S01E01.mp4")
+	if err := os.WriteFile(oldPath, []byte("video"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(oldPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := NewItemFromFileInfo(Library{ID: "shows", Type: "tvshow"}, root, oldPath, info)
+	if item.Season != 1 || item.Episode != 1 {
+		t.Fatalf("initial episode = S%02dE%02d", item.Season, item.Episode)
+	}
+	if err := os.Rename(oldPath, newPath); err != nil {
+		t.Fatal(err)
+	}
+	refreshed := RefreshItemPath(item, newPath)
+	if refreshed.FileName != "Example.Show.S01E01.mp4" {
+		t.Fatalf("file name = %q", refreshed.FileName)
+	}
+	if refreshed.ShowGuess != "Example Show" || refreshed.Season != 1 || refreshed.Episode != 1 {
+		t.Fatalf("refreshed item = show %q S%02dE%02d", refreshed.ShowGuess, refreshed.Season, refreshed.Episode)
 	}
 }
 

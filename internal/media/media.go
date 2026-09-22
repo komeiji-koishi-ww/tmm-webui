@@ -1488,7 +1488,10 @@ func GuessSeasonEpisode(sourcePath string, path string, showName string) Episode
 	}
 	fileOnly := filepath.Base(path)
 	match := detectEpisode(fileOnly, showName)
-	if season := seasonFromRelativePath(rel); season > 0 {
+	// An explicit season in the filename (for example S01E10) is more
+	// authoritative than a possibly stale or incorrectly named season folder.
+	// Bare episode filenames such as 02.mkv do not provide a season.
+	if season := seasonFromRelativePath(rel); season > 0 && !filenameHasExplicitSeason(fileOnly) {
 		match.Season = season
 	}
 	if len(match.Episodes) == 0 && match.AirDate == "" {
@@ -1501,6 +1504,14 @@ func GuessSeasonEpisode(sourcePath string, path string, showName string) Episode
 		match.Season = 1
 	}
 	return match
+}
+
+func filenameHasExplicitSeason(name string) bool {
+	clean := normalizeEpisodeName(name, "")
+	return seasonMultiEpisodePattern.MatchString(clean) ||
+		xMultiEpisodePattern.MatchString(clean) ||
+		seasonLongPattern.MatchString(clean) ||
+		seasonOnlyPattern.MatchString(clean)
 }
 
 func seasonFromRelativePath(rel string) int {
@@ -2200,6 +2211,18 @@ func RefreshItemPath(item Item, targetFile string) Item {
 	item.FileName = filepath.Base(targetFile)
 	item.ID = stableID(targetFile)
 	item.MediaType = ClassifyMediaFile(targetFile)
+	if item.Kind == "tvshow" {
+		// A manual rename can correct an unrecognised filename such as 01.mp4.
+		// Re-run the same lightweight filename parser used during scanning so the
+		// in-memory item immediately reflects the new season and episode numbers.
+		item.ShowGuess = GuessShowName(item.SourcePath, targetFile)
+		item.TitleGuess = item.ShowGuess
+		match := GuessSeasonEpisode(item.SourcePath, targetFile, item.ShowGuess)
+		item.Season = match.Season
+		item.Episode = match.PrimaryEpisode()
+		item.Episodes = match.Episodes
+		item.AirDate = match.AirDate
+	}
 	item.FileSizeBytes = fileSizeBytes
 	item.FileSize = fileSize
 	item.VideoFormat = videoFormat

@@ -102,6 +102,12 @@ func (s *Server) refreshCachedItems() {
 
 func itemChanged(a media.Item, b media.Item) bool {
 	return a.DateAdded != b.DateAdded ||
+		a.FileName != b.FileName ||
+		a.ShowGuess != b.ShowGuess ||
+		a.Season != b.Season ||
+		a.Episode != b.Episode ||
+		strings.Join(intSliceStrings(a.Episodes), "\x00") != strings.Join(intSliceStrings(b.Episodes), "\x00") ||
+		a.AirDate != b.AirDate ||
 		a.TitleGuess != b.TitleGuess ||
 		a.YearGuess != b.YearGuess ||
 		a.Original != b.Original ||
@@ -128,6 +134,17 @@ func itemChanged(a media.Item, b media.Item) bool {
 		a.HasPoster != b.HasPoster ||
 		a.HasFanart != b.HasFanart ||
 		a.HasSubtitle != b.HasSubtitle
+}
+
+func intSliceStrings(values []int) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	result := make([]string, len(values))
+	for i, value := range values {
+		result[i] = strconv.Itoa(value)
+	}
+	return result
 }
 
 // compactStoredItems migrates older full stream payloads in bounded batches.

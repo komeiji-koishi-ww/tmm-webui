@@ -52,9 +52,30 @@ export const libraryMixin = {
       const libraries = await this.api("/api/libraries");
       this.libraries = Array.isArray(libraries) ? libraries : [];
       if (this.libraries.length && !this.selectedLibrary) {
-        const first = this.filteredLibraries[0] || this.libraries[0];
+        const rememberedID = this.rememberedLibraryID();
+        const remembered = rememberedID
+          ? this.libraries.find((library) => library.id === rememberedID)
+          : null;
+        const first = remembered || this.filteredLibraries[0] || this.libraries[0];
         this.activeModule = first.type || "movie";
         await this.selectLibrary(first);
+      }
+    },
+    rememberedLibraryID() {
+      if (typeof window === "undefined" || !window.localStorage) return "";
+      try {
+        return window.localStorage.getItem("tmmweb.selectedLibraryId") || "";
+      } catch (_error) {
+        return "";
+      }
+    },
+    rememberLibrary(library) {
+      if (!library || typeof window === "undefined" || !window.localStorage)
+        return;
+      try {
+        window.localStorage.setItem("tmmweb.selectedLibraryId", library.id);
+      } catch (_error) {
+        // Storage can be unavailable in private browsing; selection still works.
       }
     },
     async switchModule(module) {
@@ -207,6 +228,7 @@ export const libraryMixin = {
       if (!library) return;
       this.activeModule = library.type || "movie";
       this.selectedLibrary = library;
+      this.rememberLibrary(library);
       this.mobileDetailOpen = false;
       this.resetMoviePage();
       this.items = [];
