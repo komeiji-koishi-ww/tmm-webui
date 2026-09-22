@@ -7,15 +7,15 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
     />
     <title>TMM WebUI</title>
-    <script src="/vue.global.prod.js?v=mobile-ui-17"></script>
+    <script src="/vue.global.prod.js?v=mobile-ui-18"></script>
     <link
       rel="stylesheet"
-      href="/vendor/element-plus/index.css?v=mobile-ui-17"
+      href="/vendor/element-plus/index.css?v=mobile-ui-18"
     />
-    <script src="/vendor/element-plus/index.full.min.js?v=mobile-ui-17"></script>
-    <script src="/vendor/element-plus-icons/index.iife.min.js?v=mobile-ui-17"></script>
-    <link rel="stylesheet" href="/styles.css?v=mobile-ui-17" />
-    <link rel="stylesheet" href="/css/mobile.css?v=mobile-ui-17" />
+    <script src="/vendor/element-plus/index.full.min.js?v=mobile-ui-18"></script>
+    <script src="/vendor/element-plus-icons/index.iife.min.js?v=mobile-ui-18"></script>
+    <link rel="stylesheet" href="/styles.css?v=mobile-ui-18" />
+    <link rel="stylesheet" href="/css/mobile.css?v=mobile-ui-18" />
   </head>
   <body>
     <div id="app" v-cloak>
@@ -90,7 +90,7 @@
                   >刮削</el-button
                 >
                 <el-button
-                  :disabled="!selectedItem"
+                  :disabled="!canRenameSelected()"
                   @click="openRenameFromToolbar"
                   >重命名</el-button
                 >
@@ -307,6 +307,14 @@
                     :disabled="busy"
                     @click.stop="openMobileTVChooser(row, $event)"
                     >刮削</el-button
+                  >
+                  <el-button
+                    v-if="row.level === 'show'"
+                    size="small"
+                    plain
+                    :disabled="busy"
+                    @click.stop="selectTvGroup('show', row.payload); openRenameFromToolbar()"
+                    >重命名</el-button
                   >
                   <template v-else>
                     <el-button
@@ -583,7 +591,7 @@
                 >
                 <el-button
                   :icon="EditPen"
-                  :disabled="!selectedItem"
+                  :disabled="!canRenameSelected()"
                   @click="openRenameFromToolbar"
                   >重命名</el-button
                 >
@@ -1889,6 +1897,6 @@
         </el-dialog>
       </el-config-provider>
     </div>
-    <script type="module" src="/app.js?v=mobile-ui-17"></script>
+    <script type="module" src="/app.js?v=mobile-ui-18"></script>
   </body>
 </html>

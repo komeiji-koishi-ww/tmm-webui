@@ -270,6 +270,14 @@ export const tvMixin = {
       return classes.join(" ");
     },
     selectedTVRenameItems(payload = null) {
+      // Group-level rename must operate on the complete show/season, not on
+      // the currently selected episode or only the rows currently expanded.
+      if (payload && payload.seasons && payload.items) {
+        return this.tvItemsForShow(payload);
+      }
+      if (payload && payload.items && payload.showKey !== undefined) {
+        return this.tvItemsForSeason(payload);
+      }
       if (
         payload &&
         payload.kind === "tvshow" &&
@@ -284,6 +292,27 @@ export const tvMixin = {
       return this.selectedItem && this.selectedItem.kind === "tvshow"
         ? [this.selectedItem]
         : [];
+    },
+    tvItemsForShow(show) {
+      if (!show) return [];
+      const key = show.key || show.title;
+      const allItems = (this.items || []).filter(
+        (item) =>
+          item.kind === "tvshow" &&
+          (item.showGuess || item.titleGuess || "未知剧集") === key,
+      );
+      return allItems.length ? allItems : (show.items || []).slice();
+    },
+    tvItemsForSeason(season) {
+      if (!season) return [];
+      const showKey = season.showKey || season.showTitle;
+      const allItems = (this.items || []).filter(
+        (item) =>
+          item.kind === "tvshow" &&
+          (item.showGuess || item.titleGuess || "未知剧集") === showKey &&
+          (item.season || 0) === (season.season || 0),
+      );
+      return allItems.length ? allItems : (season.items || []).slice();
     },
     handleKeydown(event) {
       this.updateKeyboardModifiers(event);
@@ -342,7 +371,18 @@ export const tvMixin = {
     canRenameFromContext() {
       return (
         this.contextMenu.scope === "movie" ||
-        this.contextMenu.scope === "episode"
+        this.contextMenu.scope === "episode" ||
+        this.contextMenu.scope === "show" ||
+        this.contextMenu.scope === "season"
+      );
+    },
+    canRenameSelected() {
+      if (this.activeModule !== "tvshow") return !!this.selectedItem;
+      return !!(
+        this.selectedItem ||
+        (this.selectedEntity &&
+          (this.selectedEntity.kind === "show" ||
+            this.selectedEntity.kind === "season"))
       );
     },
     openLocalRenameFromContext() {
@@ -354,13 +394,38 @@ export const tvMixin = {
         this.openLocalRename([payload], "movie");
         return;
       }
+      if (scope === "show") {
+        this.openLocalRename(this.selectedTVRenameItems(payload), "tvshow");
+        return;
+      }
+      if (scope === "season") {
+        this.openLocalRename(
+          this.selectedTVRenameItems(payload.season || payload),
+          "tvshow",
+        );
+        return;
+      }
       if (scope === "episode") {
         this.openLocalRename(this.selectedTVRenameItems(payload), "tvshow");
       }
     },
     openRenameFromToolbar() {
-      if (!this.selectedItem) return;
+      if (!this.canRenameSelected()) return;
       if (this.activeModule === "tvshow") {
+        if (this.selectedEntity?.kind === "show") {
+          this.openLocalRename(
+            this.selectedTVRenameItems(this.selectedEntity.payload),
+            "tvshow",
+          );
+          return;
+        }
+        if (this.selectedEntity?.kind === "season") {
+          this.openLocalRename(
+            this.selectedTVRenameItems(this.selectedEntity.payload),
+            "tvshow",
+          );
+          return;
+        }
         this.openLocalRename(
           this.selectedTVRenameItems(this.selectedItem),
           "tvshow",

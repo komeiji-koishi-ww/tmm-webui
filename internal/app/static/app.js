@@ -7,7 +7,7 @@ import { renamerMixin } from "./js/renamer.js";
 import { createInitialState } from "./js/state.js";
 import { settingsMixin } from "./js/settings.js";
 import { summaryMixin } from "./js/summary.js";
-import { tvMixin } from "./js/tv.js?v=mobile-ui-17";
+import { tvMixin } from "./js/tv.js?v=mobile-ui-18";
 
 const { createApp } = Vue;
 const ElementIcons = window.ElementPlusIconsVue || {};
