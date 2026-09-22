@@ -370,10 +370,25 @@ export const tvMixin = {
       this.openLocalRename([this.selectedItem], "movie");
     },
     firstTVItem(show) {
-      const firstSeason = show && show.seasons ? show.seasons[0] : null;
-      return firstSeason && firstSeason.items.length
-        ? firstSeason.items[0]
-        : null;
+      if (!show) return null;
+
+      // Use all episodes so group sorting does not depend on which season was
+      // scanned first.
+      const items = Array.isArray(show.items)
+        ? show.items
+        : Array.from(show.seasons?.values?.() || []).flatMap((season) =>
+            Array.isArray(season.items) ? season.items : [],
+          );
+      if (!items.length) return null;
+
+      if (this.sortKey === "dateAdded") {
+        return items.reduce((latest, item) =>
+          this.compareDate(item.dateAdded, latest.dateAdded) > 0
+            ? item
+            : latest,
+        );
+      }
+      return items[0];
     },
     showRootPath(item) {
       if (!item) return "";
